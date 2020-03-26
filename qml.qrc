@@ -1,0 +1,21 @@
+<RCC>
+    <qresource prefix="/">
+        <file>main.cpp</file>
+        <file>qml/main.qml</file>
+        <file>qtquickcontrols2.conf</file>
+        <file>qml/Pages/Control.qml</file>
+        <file>qml/Components/LabelBoard.qml</file>
+        <file>qml/Default_Application/Control.qml</file>
+        <file>qml/Components/LabelEdit.qml</file>
+        <file>qml/Components/LabelComboEdit.qml</file>
+        <file>qml/Components/CustomButton0.qml</file>
+        <file>qml/Components/WindowControlButtons.qml</file>
+        <file>qml/Components/CustomEdit0.qml</file>
+        <file>qml/Components/AnchorRef.qml</file>
+        <file>qml/Components/CustomCheckBox0.qml</file>
+        <file>qml/Components/GridLabelBoard.qml</file>
+        <file>qml/Components/ProgressWindow.qml</file>
+        <file>qml/Components/MinSizeEdit.qml</file>
+        <file>qml/Components/AttachViewBoard.qml</file>
+    </qresource>
+</RCC>
