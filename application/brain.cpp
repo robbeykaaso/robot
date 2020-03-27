@@ -5,6 +5,7 @@
 #include <iostream>
 #include <QScreen>
 #include <QDir>
+#include <opencv2/opencv.hpp>
 
 /*HHOOK g_hook;
 bool goahead = false;
@@ -16,6 +17,72 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam){
         goahead = false;
     return CallNextHookEx(g_hook, nCode, wParam, lParam);
 }*/
+
+//copy form: https://blog.csdn.net/dancing_night/article/details/51545524
+QImage cvMat2QImage(const cv::Mat& mat)
+{
+    if (mat.type() == CV_8UC1)
+    {
+        QImage image(mat.cols, mat.rows, QImage::Format_Indexed8);
+        image.setColorCount(256);
+        for (int i = 0; i < 256; i++)
+        {
+            image.setColor(i, qRgb(i, i, i));
+        }
+        uchar *pSrc = mat.data;
+        for (int row = 0; row < mat.rows; row++)
+        {
+            uchar *pDest = image.scanLine(row);
+            memcpy(pDest, pSrc, mat.cols);
+            pSrc += mat.step;
+        }
+        // cv::Mat dst;
+        // cv::cvtColor(mat, dst, cv::COLOR_GRAY2RGB);
+        //  return QImage(dst.data, dst.cols, dst.rows, dst.step, QImage::Format_RGB888).copy();
+        //return image.convertToFormat(QImage::Format_RGB888);
+        return image;
+    }
+    else if (mat.type() == CV_8UC3)
+    {
+        // const uchar *pSrc = (const uchar*)mat.data;
+        cv::Mat dst;
+        cv::cvtColor(mat, dst, cv::COLOR_BGR2RGB);
+        auto image = QImage(dst.data, mat.cols, mat.rows, mat.step, QImage::Format_RGB888).copy();
+        return image.rgbSwapped();
+    }
+    else if (mat.type() == CV_8UC4)
+    {
+        const uchar *pSrc = (const uchar*)mat.data;
+        QImage image(pSrc, mat.cols, mat.rows, mat.step, QImage::Format_ARGB32);
+        return image.copy();
+    }
+    else
+    {
+        return QImage();
+    }
+}
+
+cv::Mat QImage2cvMat(QImage image)
+{
+    cv::Mat mat;
+    //    qDebug() << image.format();
+    switch(image.format())
+    {
+    case QImage::Format_ARGB32:
+    case QImage::Format_RGB32:
+    case QImage::Format_ARGB32_Premultiplied:
+        mat = cv::Mat(image.height(), image.width(), CV_8UC4, (void*)image.constBits(), image.bytesPerLine());
+        break;
+    case QImage::Format_RGB888:
+        mat = cv::Mat(image.height(), image.width(), CV_8UC3, (void*)image.constBits(), image.bytesPerLine());
+        cv::cvtColor(mat, mat, cv::COLOR_BGR2RGB);
+        break;
+    case QImage::Format_Indexed8:
+        mat = cv::Mat(image.height(), image.width(), CV_8UC1, (void*)image.constBits(), image.bytesPerLine());
+        break;
+    }
+    return mat;
+}
 
 class robotBrain : public dst::configObject{
 private:
@@ -34,6 +101,24 @@ private:
                 ret.insert("del", dst::JArray(- 400, 0));
         }
         return ret;
+    }
+    void testCalc(const QImage& aImage){
+        if (!m_tick++){
+        cv::Mat src = QImage2cvMat(aImage);
+        cv::cvtColor(src, src, cv::COLOR_RGB2GRAY);
+        cv::Mat tmp = imread("config_/2.png", cv::IMREAD_GRAYSCALE);
+        cv::Mat ret;
+        cv::matchTemplate(src, tmp, ret, 0);
+        normalize(ret, ret, 0, 1, cv::NORM_MINMAX);
+        double minValue, maxValue;
+        cv::Point minLocation, maxLocation;
+        cv::Point matchLocation;
+        minMaxLoc(ret, &minValue, &maxValue, &minLocation, &maxLocation, cv::Mat());
+        cv::rectangle(ret, minLocation, cv::Point(minLocation.x + tmp.cols, minLocation.y + tmp.rows), cv::Scalar(0,255,0), 2, 8);
+        //cv::Mat ret;
+        //threshold(src, ret, 125, 255, cv::THRESH_BINARY);
+        //imshow("test", ret);
+        }
     }
     std::shared_ptr<dst::imageObject> m_screen;
     QTransform m_trans;
@@ -68,6 +153,7 @@ public:
             auto cfg = reinterpret_cast<dst::imageObject::streamImage*>(aInput.get());
             auto img = cfg->getImage()->getImage();
             //TRIG("showImage", aInput);
+            testCalc(img);
             if (m_go){
                 TRIG("controlWorld", STMJSON(calcOperation()));
             }
