@@ -5,3 +5,6 @@ a AI robot to play games automatically
 1. mydll(streamManager framework)
 2. tinny-dnn
 3. opencv
+
+# developping
+hearthStone
