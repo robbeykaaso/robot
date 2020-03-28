@@ -27,9 +27,12 @@ find_package(STMMAN)
 
 add_executable(${PROJECT_NAME} "main.cpp" #WIN32: to disable the console window
     "qml.qrc"
+    "application/brain.h"
     "application/brain.cpp"
     "application/eye.cpp"
     "application/hand.cpp"
+
+    "application/hearthStone.cpp"
     "resource/logo.rc")
 target_compile_definitions(${PROJECT_NAME} PRIVATE $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:QT_QML_DEBUG>)
 #message(${PROJECT_NAME})
