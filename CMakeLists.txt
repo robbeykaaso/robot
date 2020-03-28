@@ -10,7 +10,7 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-#add_compile_options(-bigobj)
+add_compile_options(-bigobj)
 #ADD_DEFINITIONS(-DQT_NO_KEYWORDS)
 
 #set(deepinspectapptemplate_ROOT)
@@ -31,6 +31,8 @@ add_executable(${PROJECT_NAME} "main.cpp" #WIN32: to disable the console window
     "application/brain.cpp"
     "application/eye.cpp"
     "application/hand.cpp"
+    "application/decimal_infer.h"
+    "application/decimal_infer.cpp"
 
     "application/hearthStone.cpp"
     "resource/logo.rc")
@@ -40,7 +42,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE Qt5::Core Qt5::Quick Qt5::Widgets 
 #include_directories("${deepinspectapptemplate_ROOT}/deepinspectControl")
 include_directories(${OpenCV_INCLUDE_DIRS})
 include_directories(${STMMAN_INCLUDE_DIRS})
-#include_directories("D:/thirdParty/tinydnn/tiny-dnn")
+include_directories("D:/thirdParty/tinydnn/tiny-dnn")
 #include_directories(${RapidJSON_INCLUDE_DIRS})
 #include_directories(${DeepInspectSDK_INCLUDE_DIRS})
 #include_directories(${RxCpp_INCLUDE_DIRS})
