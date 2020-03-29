@@ -1,3 +1,4 @@
+#include "decimal_infer.h"
 #include "tiny_dnn/tiny_dnn.h"
 #include "tiny_dnn/util/image.h"
 
@@ -43,4 +44,8 @@ void recognize(const std::string &dictionary, const std::string &src_filename) {
 
     for (int i = 0; i < 3; i++)
         std::cout << scores[i].second << "," << scores[i].first << std::endl;
+}
+
+int recognizeNumber(const cv::Mat& aROI){
+    return - 1;
 }
