@@ -1,6 +1,7 @@
 #include "decimal_infer.h"
 #include "tiny_dnn/tiny_dnn.h"
 #include "tiny_dnn/util/image.h"
+#include <QString>
 
 //sample train
 
@@ -165,8 +166,77 @@ void recognize(const std::string &dictionary, const std::string &src_filename) {
 
 //my train
 
-void trainGemModel(const std::string& aDirectory){
+void prepareTrainData(const std::string& aDirectory, std::vector<tiny_dnn::label_t>& aTrainLabels, std::vector<tiny_dnn::label_t>& aTestLabels,
+    std::vector<tiny_dnn::vec_t>& aTrainImages, std::vector<tiny_dnn::vec_t>& aTestImages){
+    std::vector<tiny_dnn::vec_t> imgs[11];
+    for (int i = 0; i < 12; ++i){
+        auto img = cv::imread(aDirectory + QString::number(i).toStdString() + ".png");
+        cv::cvtColor(img, img, cv::COLOR_RGB2GRAY);
+        tiny_dnn::vec_t ret(img.cols * img.rows);
+        for (int i = 0; i < img.rows; i++){
+            auto ptr = img.ptr(i);
+            for (int j = 0; j < img.cols; j++)
+                ret[i * img.cols + j] = ptr[j] / float_t(255) * 2 - 1;
+        }
+        imgs->push_back(ret);
+    }
 
+    srand( (unsigned)time(NULL));
+    for (int i = 0; i < 45000; ++i){
+        auto idx = std::rand() % 12;
+        aTrainLabels.push_back(idx);
+        aTrainImages.push_back(imgs->at(idx));
+    }
+    for (int i = 0; i < 15000; ++i){
+        auto idx = std::rand() % 12;
+        aTestLabels.push_back(idx);
+        aTestImages.push_back(imgs->at(idx));
+    }
+}
+
+void trainGemModel(const std::string& aDirectory){
+  int n_train_epochs = 30;
+  tiny_dnn::core::backend_t backend_type = tiny_dnn::core::default_engine();
+  double learning_rate = 1;
+  int n_minibatch = 16;
+
+
+  tiny_dnn::network<tiny_dnn::sequential> nn;
+  tiny_dnn::adagrad optimizer;
+  construct_net(nn, backend_type);
+  std::cout << "load models..." << std::endl;
+
+  std::vector<tiny_dnn::label_t> train_labels, test_labels;
+  std::vector<tiny_dnn::vec_t> train_images, test_images;
+  prepareTrainData(aDirectory, train_labels, test_labels, train_images, test_images);
+
+  std::cout << "start training" << std::endl;
+  tiny_dnn::progress_display disp(train_images.size());
+  tiny_dnn::timer t;
+  optimizer.alpha *=
+    std::min(tiny_dnn::float_t(4),
+             static_cast<tiny_dnn::float_t>(sqrt(n_minibatch) * learning_rate));
+
+  int epoch = 1;
+  auto on_enumerate_epoch = [&]() {
+    std::cout << "Epoch " << epoch << "/" << n_train_epochs << " finished. "
+              << t.elapsed() << "s elapsed." << std::endl;
+    ++epoch;
+    tiny_dnn::result res = nn.test(test_images, test_labels);
+    std::cout << res.num_success << "/" << res.num_total << std::endl;
+
+    disp.restart(train_images.size());
+    t.restart();
+  };
+
+  auto on_enumerate_minibatch = [&]() { disp += n_minibatch; };
+  nn.train<tiny_dnn::mse>(optimizer, train_images, train_labels, n_minibatch,
+                          n_train_epochs, on_enumerate_minibatch,
+                          on_enumerate_epoch);
+  std::cout << "end training." << std::endl;
+
+  nn.test(test_images, test_labels).print_detail(std::cout);
+  nn.save("LeNet-model");
 }
 
 //my infer
