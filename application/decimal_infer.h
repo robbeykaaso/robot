@@ -4,5 +4,6 @@
 #include <opencv2/opencv.hpp>
 
 int recognizeNumber(const cv::Mat& aROI);
+void trainGemModel(const std::string& aDirectory);
 
 #endif

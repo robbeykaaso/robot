@@ -213,9 +213,10 @@ robotBrain::robotBrain() : configObject(QJsonObject()){
 }
 
 
-REGISTERPipe(collectShapeCommand, mdycrop, [](std::shared_ptr<dst::streamData> aInput){
+REGISTERPipe(collectShapeCommand, mdydnn, [](std::shared_ptr<dst::streamData> aInput){
     QJsonObject items;
     items.insert("crop", "commandCrop");
+    items.insert("train", "commandTrainGem");
     aInput->callback(&items);
     return aInput;
 }, 0);

@@ -165,6 +165,10 @@ void recognize(const std::string &dictionary, const std::string &src_filename) {
 
 //my train
 
+void trainGemModel(const std::string& aDirectory){
+
+}
+
 //my infer
 
 void convert_image(const cv::Mat& aImage,

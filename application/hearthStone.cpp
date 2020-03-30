@@ -147,12 +147,17 @@ private:
     cv::Rect m_loc_4[4];
 protected:
     std::vector<std::shared_ptr<card>> m_cards;
+    int m_tick = 0;
 private:
     bool isValidGem(const cv::Rect& aPos, const cv::Mat& aBackground, int &aNumber){
         if (aPos.width > 0 && aPos.height > 0){
             auto roi = aBackground(cv::Rect(aPos.x, aPos.y, aPos.width, aPos.height));
-           // cv::imshow("匹配后的图像", roi);
-            aNumber = recognizeNumber(roi);
+            cv::Mat roi2;
+            cv::resize(roi, roi2, cv::Size(32, 32));
+            if (!m_tick++){
+                cv::imshow("匹配后的图像", roi2);
+            }
+            aNumber = recognizeNumber(roi2);
             return aNumber >= 0;
         }else
             return false;
@@ -326,6 +331,11 @@ public:
         m_scenes.push_back(std::make_shared<myTurnScene>());
         m_scenes.push_back(std::make_shared<enemyTurnScene>());
         m_scenes.push_back(std::make_shared<gameOverScene>());
+
+        dst::streamManager::instance()->registerEvent("commandTrainGem", "mdyHearthStone", [this](std::shared_ptr<dst::streamData> aInput){
+            trainGemModel("config_/hearthStone/gemImages");
+            return aInput;
+        });
     }
 protected:
     void calcScene(const QImage& aImage) override{
