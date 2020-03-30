@@ -20,8 +20,68 @@ private:
    // cv::Rect m_pos;
 };
 
+class cardsModel;
+
+class scene{
+public:
+    virtual ~scene(){}
+    virtual double isCurrentScene(const cv::Mat& aScreen) = 0;
+    virtual void updateModel(std::shared_ptr<cardsModel> aCards) = 0;
+    virtual QJsonObject calcOperation() = 0;
+    static void loadFeaturePos(const QString& aName, cv::Rect& aPos){
+        QFile fl("config_/hearthStone/" + aName + ".json");
+        if (fl.open(QFile::ReadOnly)){
+            auto rect = QJsonDocument::fromJson(fl.readAll()).array();
+            aPos.x = rect[0].toInt();
+            aPos.y = rect[1].toInt();
+            aPos.width = rect[2].toInt() - rect[0].toInt();
+            aPos.height = rect[3].toInt() - rect[1].toInt();
+            fl.close();
+        }
+    }
+    static void loadFeatureImage(const QString& aName, cv::Mat& aFeature){
+        QImage img("config_/hearthStone/" + aName + ".png");
+        if (!img.isNull()){
+            auto cv_img = QImage2cvMat(img);
+            cv::cvtColor(cv_img, cv_img, cv::COLOR_RGB2GRAY);
+            normalize(cv_img, aFeature, 0, 1, cv::NORM_MINMAX);
+        }
+    }
+protected:
+    double calcFeatureIOU(const cv::Mat& aBackground, const cv::Mat& aFeature, const cv::Rect& aPos, cv::Rect& aRetPos){
+        if (aFeature.cols == 0 || aFeature.rows == 0 || aPos.width == 0 || aPos.height == 0)
+            return 0;
+        auto src = aBackground(cv::Rect(aPos.x - 5, aPos.y - 5, aPos.width + 5, aPos.height + 5));
+        normalize(src, src, 0, 1, cv::NORM_MINMAX);
+
+        cv::Mat ret;
+        cv::matchTemplate(src, aFeature, ret, cv::TemplateMatchModes::TM_SQDIFF_NORMED);
+
+        double minValue, maxValue;
+        cv::Point minLocation, maxLocation;
+        cv::Point matchLocation;
+        minMaxLoc(ret, &minValue, &maxValue, &minLocation, &maxLocation, cv::Mat());
+
+        if (minValue < 0.05){
+            cv::Rect target(minLocation.x, minLocation.y, aPos.width, aPos.height), origin(5, 5, aPos.width, aPos.height);
+            aRetPos = cv::Rect(minLocation.x - 5 + aPos.x, minLocation.y - 5 + aPos.y, aPos.width, aPos.height);
+            return (target & origin).area() * 1.0 / (target | origin).area();
+        }else
+            return 0;
+        //cv::rectangle(src, minLocation, cv::Point(minLocation.x + m_ready_button.cols, minLocation.y + m_ready_button.rows), cv::Scalar(0,255,0), 2, 8);
+        //cv::imshow("匹配后的图像", src);
+    }
+    bool m_valid = false;
+};
+
 class cardsModel{
 public:
+    cardsModel(){
+        for (int i = 0; i < 10; ++i)
+            for (int j = 0; j < i + 1; ++j){
+                scene::loadFeaturePos("cards_pos/" + QString::number(i) + "_" + QString::number(j), m_cards_pos[i][j]);
+            }
+    }
     void addCard(std::shared_ptr<card> aCard){
         m_cards[aCard->getCost()].insert(aCard);
         ++m_cards_count;
@@ -45,10 +105,10 @@ public:
             }
     }
     void reset(){
-       for (auto i : m_cards)
-           i.clear();
-       m_gem_count = 0;
-       m_cards_count = 0;
+        for (auto i : m_cards)
+            i.clear();
+        m_gem_count = 0;
+        m_cards_count = 0;
     }
     std::set<std::shared_ptr<card>> getCards(int aCost) {return m_cards[aCost];}
     void setGemCount(int aCount) { m_gem_count = aCount;}
@@ -60,57 +120,6 @@ private:
     cv::Rect m_cards_pos[10][10];
 };
 
-class scene{
-public:
-    virtual ~scene(){}
-    virtual double isCurrentScene(const cv::Mat& aScreen) = 0;
-    virtual void updateModel(std::shared_ptr<cardsModel> aCards) = 0;
-    virtual QJsonObject calcOperation() = 0;
-protected:
-    double calcFeatureIOU(const cv::Mat& aBackground, const cv::Mat& aFeature, const cv::Rect& aPos, cv::Rect& aRetPos){
-        if (aFeature.cols == 0 || aFeature.rows == 0)
-            return 0;
-        auto src = aBackground(cv::Rect(aPos.x - 5, aPos.y - 5, aPos.width + 5, aPos.height + 5));
-        normalize(src, src, 0, 1, cv::NORM_MINMAX);
-
-        cv::Mat ret;
-        cv::matchTemplate(src, aFeature, ret, cv::TemplateMatchModes::TM_SQDIFF_NORMED);
-
-        double minValue, maxValue;
-        cv::Point minLocation, maxLocation;
-        cv::Point matchLocation;
-        minMaxLoc(ret, &minValue, &maxValue, &minLocation, &maxLocation, cv::Mat());
-
-        if (minValue < 0.05){
-            cv::Rect target(minLocation.x, minLocation.y, aPos.width, aPos.height), origin(5, 5, aPos.width, aPos.height);
-            aRetPos = cv::Rect(minLocation.x - 5 + aPos.x, minLocation.y - 5 + aPos.y, aPos.width, aPos.height);
-            return (target & origin).area() * 1.0 / (target | origin).area();
-        }else
-            return 0;
-        //cv::rectangle(src, minLocation, cv::Point(minLocation.x + m_ready_button.cols, minLocation.y + m_ready_button.rows), cv::Scalar(0,255,0), 2, 8);
-        //cv::imshow("匹配后的图像", src);
-    }
-    void loadFeature(const QString& aName, cv::Mat& aFeature, cv::Rect& aPos){
-        QFile fl("config_/hearthStone/" + aName + ".json");
-        if (fl.open(QFile::ReadOnly)){
-            auto rect = QJsonDocument::fromJson(fl.readAll()).array();
-            aPos.x = rect[0].toInt();
-            aPos.y = rect[1].toInt();
-            aPos.width = rect[2].toInt() - rect[0].toInt();
-            aPos.height = rect[3].toInt() - rect[1].toInt();
-            fl.close();
-        }
-
-        QImage img("config_/hearthStone/" + aName + ".png");
-        if (!img.isNull()){
-            auto cv_img = QImage2cvMat(img);
-            cv::cvtColor(cv_img, cv_img, cv::COLOR_RGB2GRAY);
-            normalize(cv_img, aFeature, 0, 1, cv::NORM_MINMAX);
-        }
-    }
-    bool m_valid = false;
-};
-
 class readyScene : public scene{
 private:
     cv::Mat m_button;
@@ -118,7 +127,8 @@ private:
     cv::Rect m_opt_loc;
 public:
     readyScene() : scene(){
-        loadFeature("ready", m_button, m_loc);
+        loadFeaturePos("ready", m_loc);
+        loadFeatureImage("ready", m_button);
     }
     double isCurrentScene(const cv::Mat& aScreen) override{
         return calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc);
@@ -139,9 +149,9 @@ protected:
     std::vector<std::shared_ptr<card>> m_cards;
 private:
     bool isValidGem(const cv::Rect& aPos, const cv::Mat& aBackground, int &aNumber){
-        if (aPos.x > 0){
+        if (aPos.width > 0 && aPos.height > 0){
             auto roi = aBackground(cv::Rect(aPos.x, aPos.y, aPos.width, aPos.height));
-            cv::imshow("匹配后的图像", roi);
+           // cv::imshow("匹配后的图像", roi);
             aNumber = recognizeNumber(roi);
             return aNumber >= 0;
         }else
@@ -149,11 +159,10 @@ private:
     }
 public:
     selectScene() : scene(){
-        cv::Mat mt;
         for (int i = 0; i < 3; ++i)
-            loadFeature("select3_" + QString::number(i), mt, m_loc_3[i]);
+            loadFeaturePos("select3_" + QString::number(i), m_loc_3[i]);
         for (int i = 0; i < 4; ++i)
-            loadFeature("select4_" + QString::number(i), mt, m_loc_4[i]);
+            loadFeaturePos("select4_" + QString::number(i), m_loc_4[i]);
     }
     double isCurrentScene(const cv::Mat& aScreen) override{
         int cost[4];
@@ -187,7 +196,8 @@ private:
     cv::Rect m_opt_loc;
 public:
     firstSelectScene() : selectScene(){
-        loadFeature("firstSelect", m_button, m_loc);
+        loadFeatureImage("firstSelect", m_button);
+        loadFeaturePos("firstSelect", m_loc);
     }
     double isCurrentScene(const cv::Mat& aScreen) override{
         selectScene::isCurrentScene(aScreen);
@@ -238,7 +248,8 @@ private:
     cv::Mat m_screen;
 public:
     myTurnScene() : scene(){
-        loadFeature("myTurn", m_button, m_loc);
+        loadFeatureImage("myTurn", m_button);
+        loadFeaturePos("myTurn", m_loc);
     }
     double isCurrentScene(const cv::Mat &aScreen) override{
         auto ret = calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc);
@@ -270,7 +281,8 @@ private:
     cv::Rect m_loc;
 public:
     enemyTurnScene() : scene(){
-        loadFeature("enemyTurn", m_button, m_loc);
+        loadFeatureImage("enemyTurn", m_button);
+        loadFeaturePos("enemyTurn", m_loc);
     }
     double isCurrentScene(const cv::Mat &aScreen) override{
         cv::Rect mt;
@@ -291,7 +303,8 @@ private:
     cv::Rect m_opt_loc;
 public:
     gameOverScene() : scene(){
-        loadFeature("gameOver", m_button, m_loc);
+        loadFeatureImage("gameOver", m_button);
+        loadFeaturePos("gameOver", m_loc);
     }
     double isCurrentScene(const cv::Mat& aScreen) override{
         return calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc);
@@ -308,11 +321,11 @@ class hearthStoneBrain : public robotBrain{
 public:
     hearthStoneBrain() : robotBrain(){
         m_cards = std::make_shared<cardsModel>();
-        //m_scenes.push_back(std::make_shared<readyScene>());
+        m_scenes.push_back(std::make_shared<readyScene>());
         m_scenes.push_back(std::make_shared<firstSelectScene>());
-        //m_scenes.push_back(std::make_shared<myTurnScene>());
-        //m_scenes.push_back(std::make_shared<enemyTurnScene>());
-        //m_scenes.push_back(std::make_shared<gameOverScene>());
+        m_scenes.push_back(std::make_shared<myTurnScene>());
+        m_scenes.push_back(std::make_shared<enemyTurnScene>());
+        m_scenes.push_back(std::make_shared<gameOverScene>());
     }
 protected:
     void calcScene(const QImage& aImage) override{
