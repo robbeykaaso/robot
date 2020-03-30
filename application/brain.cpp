@@ -153,14 +153,16 @@ robotBrain::robotBrain() : configObject(QJsonObject()){
     });
 
     dst::streamManager::instance()->registerEvent("handleImage", "mdybrain",  [this](std::shared_ptr<dst::streamData> aInput){
-        auto cfg = reinterpret_cast<dst::imageObject::streamImage*>(aInput.get());
-        auto img = cfg->getImage()->getImage();
-        //TRIG("showImage", aInput);
-        //testCalc(img);
-        if (m_go){
-            calcScene(img);
-            updateModel();
-            TRIG("controlWorld", STMJSON(calcOperation()));
+        if (!m_busy){
+            m_busy = true;
+            auto cfg = reinterpret_cast<dst::imageObject::streamImage*>(aInput.get());
+            auto img = cfg->getImage()->getImage();
+            if (m_go){
+                calcScene(img);
+                updateModel();
+                TRIG("controlWorld", STMJSON(calcOperation()));
+            }
+            m_busy = false;
         }
         return aInput;
     }, "", "", 1);

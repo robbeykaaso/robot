@@ -27,6 +27,7 @@ public:
     }
 private:
     int m_tick = 0;
+    bool m_busy = false;
     bool m_go = false;
 };
 

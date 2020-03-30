@@ -11,23 +11,53 @@ public:
         m_cost = aCost;
     }
     int getCost() {return m_cost;}
+    int getIndex() {return m_index;}
+    void setIndex(int aIndex) {m_index = aIndex;}
+   // cv::Rect getPos() {return m_pos;}
 private:
     int m_index;
     int m_cost;
-    cv::Rect m_pos;
+   // cv::Rect m_pos;
 };
 
 class cardsModel{
 public:
     void addCard(std::shared_ptr<card> aCard){
         m_cards[aCard->getCost()].insert(aCard);
+        ++m_cards_count;
+    }
+    int getCardsCount() {return m_cards_count;}
+    cv::Rect getCardPos(int aIndex){
+        return m_cards_pos[m_cards_count - 1][aIndex];
+    }
+    void supplyCard(std::shared_ptr<card> aCard){
+        if (m_cards_count > 9)
+            return;
+        addCard(aCard);
+    }
+    void placeCard(int aIndex) {
+        --m_cards_count;
+        for (int i = 0; i < 10; ++i)
+            for (auto j : m_cards[i]){
+                auto idx = j->getIndex();
+                if (idx > aIndex)
+                    j->setIndex(idx - 1);
+            }
     }
     void reset(){
        for (auto i : m_cards)
            i.clear();
+       m_gem_count = 0;
+       m_cards_count = 0;
     }
+    std::set<std::shared_ptr<card>> getCards(int aCost) {return m_cards[aCost];}
+    void setGemCount(int aCount) { m_gem_count = aCount;}
+    int getGemCount() {return m_gem_count;}
 private:
+    int m_cards_count;
+    int m_gem_count;
     std::set<std::shared_ptr<card>> m_cards[10];
+    cv::Rect m_cards_pos[10][10];
 };
 
 class scene{
@@ -38,7 +68,10 @@ public:
     virtual QJsonObject calcOperation() = 0;
 protected:
     double calcFeatureIOU(const cv::Mat& aBackground, const cv::Mat& aFeature, const cv::Rect& aPos, cv::Rect& aRetPos){
+        if (aFeature.cols == 0 || aFeature.rows == 0)
+            return 0;
         auto src = aBackground(cv::Rect(aPos.x - 5, aPos.y - 5, aPos.width + 5, aPos.height + 5));
+        normalize(src, src, 0, 1, cv::NORM_MINMAX);
 
         cv::Mat ret;
         cv::matchTemplate(src, aFeature, ret, cv::TemplateMatchModes::TM_SQDIFF_NORMED);
@@ -106,11 +139,14 @@ protected:
     std::vector<std::shared_ptr<card>> m_cards;
 private:
     bool isValidGem(const cv::Rect& aPos, const cv::Mat& aBackground, int &aNumber){
-        auto roi = aBackground(cv::Rect(aPos.x, aPos.y, aPos.width, aPos.height));
-        threshold(roi, roi, 20, 255, cv::THRESH_BINARY);
-        aNumber = recognizeNumber(roi);
-        return false;
-    };
+        if (aPos.x > 0){
+            auto roi = aBackground(cv::Rect(aPos.x, aPos.y, aPos.width, aPos.height));
+            cv::imshow("匹配后的图像", roi);
+            aNumber = recognizeNumber(roi);
+            return aNumber >= 0;
+        }else
+            return false;
+    }
 public:
     selectScene() : scene(){
         cv::Mat mt;
@@ -171,31 +207,69 @@ private:
     cv::Mat m_button;
     cv::Rect m_loc;
     cv::Rect m_opt_loc;
+    std::shared_ptr<cardsModel> m_cards_model;
+    cv::Point m_card_place;
+private:
+    void attackEnemy(){
+
+    }
+    void placeCards(){
+        int gem_count = m_cards_model->getGemCount();
+
+        auto higher_cost = std::min(gem_count, 10);
+        for (int i = higher_cost; i >= 0;){
+            auto cards = m_cards_model->getCards(i);
+            if (cards.size() > 0){
+                auto card = *cards.begin();
+                cards.erase(cards.begin());
+                gem_count -= card->getCost();
+                i -= card->getCost();
+                auto st_pos = m_cards_model->getCardPos(card->getIndex());
+                auto st_x = st_pos.x + st_pos.width * 0.5, st_y = st_pos.y + st_pos.height * 0.5;
+                TRIG("controlWorld", STMJSON(dst::Json("type", "drag",
+                                                       "org", dst::JArray(st_x, st_y),
+                                                       "del", dst::JArray(m_card_place.x - st_x, m_card_place.y - st_y))));
+                m_cards_model->placeCard(card->getIndex());
+                continue;
+            }else
+                --i;
+        }
+    }
+    cv::Mat m_screen;
 public:
     myTurnScene() : scene(){
         loadFeature("myTurn", m_button, m_loc);
     }
     double isCurrentScene(const cv::Mat &aScreen) override{
         auto ret = calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc);
-        if (ret == 1.0){
-
-        }
+        if (ret == 1.0)
+            m_screen = aScreen;
         return ret;
     }
     void updateModel(std::shared_ptr<cardsModel> aCards) override{
+        m_cards_model = aCards;
 
+        int card_count = m_cards_model->getCardsCount();
+        if (card_count < 10){
+            auto pos = m_cards_model->getCardPos(card_count);
+            auto roi = m_screen(pos);
+            auto cost = recognizeNumber(roi);
+            m_cards_model->supplyCard(std::make_shared<card>(card_count, cost));
+        }
     }
     QJsonObject calcOperation() override{
-        return QJsonObject();
+        attackEnemy();
+        placeCards();
+        return dst::Json("type", "click", "org", dst::JArray(m_opt_loc.x + m_opt_loc.width * 0.5, m_opt_loc.y + m_opt_loc.height * 0.5));
     }
 };
 
-class EnemyTurnScene : public scene{
+class enemyTurnScene : public scene{
 private:
     cv::Mat m_button;
     cv::Rect m_loc;
 public:
-    EnemyTurnScene() : scene(){
+    enemyTurnScene() : scene(){
         loadFeature("enemyTurn", m_button, m_loc);
     }
     double isCurrentScene(const cv::Mat &aScreen) override{
@@ -234,8 +308,11 @@ class hearthStoneBrain : public robotBrain{
 public:
     hearthStoneBrain() : robotBrain(){
         m_cards = std::make_shared<cardsModel>();
-        m_scenes.push_back(std::make_shared<readyScene>());
+        //m_scenes.push_back(std::make_shared<readyScene>());
         m_scenes.push_back(std::make_shared<firstSelectScene>());
+        //m_scenes.push_back(std::make_shared<myTurnScene>());
+        //m_scenes.push_back(std::make_shared<enemyTurnScene>());
+        //m_scenes.push_back(std::make_shared<gameOverScene>());
     }
 protected:
     void calcScene(const QImage& aImage) override{
@@ -245,7 +322,6 @@ protected:
         auto cv_img = QImage2cvMat(aImage);
         cv::Mat dst;
         cv::cvtColor(cv_img, dst, cv::COLOR_RGB2GRAY);
-        normalize(dst, dst, 0, 1, cv::NORM_MINMAX);
 
         for (auto i : m_scenes){
             auto scr = i->isCurrentScene(dst);

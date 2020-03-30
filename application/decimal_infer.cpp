@@ -46,6 +46,30 @@ void recognize(const std::string &dictionary, const std::string &src_filename) {
         std::cout << scores[i].second << "," << scores[i].first << std::endl;
 }
 
+void convert_image(const cv::Mat& aImage,
+                   double minv,
+                   double maxv,
+                   int w,
+                   int h,
+                   tiny_dnn::vec_t &data) {
+    tiny_dnn::image<> img(aImage.data, w, h, tiny_dnn::image_type::grayscale);
+    tiny_dnn::image<> resized = resize_image(img, w, h);
+
+    // mnist dataset is "white on black", so negate required
+    std::transform(
+        resized.begin(), resized.end(), std::back_inserter(data),
+        [=](uint8_t c) { return (255 - c) * (maxv - minv) / 255.0 + minv; });
+}
+
 int recognizeNumber(const cv::Mat& aROI){
-    return - 1;
+    tiny_dnn::network<tiny_dnn::sequential> nn;
+    nn.load("LeNet-model");
+    tiny_dnn::vec_t data;
+    convert_image(aROI, -1.0, 1.0, 32, 32, data);
+    auto res = nn.predict(data);
+    std::vector<std::pair<double, int>> scores;
+    for (int i = 0; i < 10; i++)
+        scores.emplace_back(res[i], i);
+    sort(scores.begin(), scores.end(), std::greater<std::pair<double, int>>());
+    return scores[0].second;
 }
