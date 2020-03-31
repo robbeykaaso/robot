@@ -1,7 +1,10 @@
 #include "decimal_infer.h"
 #include "tiny_dnn/tiny_dnn.h"
 #include "tiny_dnn/util/image.h"
-#include <QString>
+#include <QDir>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 
 //sample train
 
@@ -166,36 +169,59 @@ void recognize(const std::string &dictionary, const std::string &src_filename) {
 
 //my train
 
-void prepareTrainData(const std::string& aDirectory, std::vector<tiny_dnn::label_t>& aTrainLabels, std::vector<tiny_dnn::label_t>& aTestLabels,
+void prepareTrainData(std::vector<tiny_dnn::label_t>& aTrainLabels, std::vector<tiny_dnn::label_t>& aTestLabels,
     std::vector<tiny_dnn::vec_t>& aTrainImages, std::vector<tiny_dnn::vec_t>& aTestImages){
-    std::vector<tiny_dnn::vec_t> imgs[11];
-    for (int i = 0; i < 12; ++i){
-        auto img = cv::imread(aDirectory + QString::number(i).toStdString() + ".png");
-        cv::cvtColor(img, img, cv::COLOR_RGB2GRAY);
-        tiny_dnn::vec_t ret(img.cols * img.rows);
-        for (int i = 0; i < img.rows; i++){
-            auto ptr = img.ptr(i);
-            for (int j = 0; j < img.cols; j++)
-                ret[i * img.cols + j] = ptr[j] / float_t(255) * 2 - 1;
-        }
-        imgs->push_back(ret);
-    }
 
+    QString rel_dir = "config_/hearthStone/imageInfo";
+    QDir dir(rel_dir);
+    for (auto i : dir.entryList())
+        if (i != "." && i != ".."){
+            QFile fl(rel_dir + "/" + i);
+            fl.open(QFile::ReadOnly);
+            auto cfg = QJsonDocument::fromJson(fl.readAll()).object();
+            auto img_pth = "config_/hearthStone/image/" + cfg.value("id").toString() + "/" + cfg.value("source").toArray()[0].toString();
+            cv::Mat bak = cv::imread(img_pth.toLocal8Bit().toStdString());
+            auto shps = cfg.value("shapes").toObject();
+            for (auto i : shps.keys()){
+                auto shp = shps.value(i).toObject();
+                if (shp.value("type") == "rectangle"){
+                    auto pts = shp.value("points").toArray();
+                    auto rect = cv::Rect(pts[0].toInt(), pts[1].toInt(), pts[2].toInt() - pts[0].toInt(), pts[3].toInt() - pts[1].toInt());
+                    cv::Mat img = bak(rect);
+                    cv::cvtColor(img, img, cv::COLOR_RGB2GRAY);
+                    cv::resize(img, img, cv::Size(32, 32));
+                    /*cv::namedWindow("hello",0);
+                    cv::moveWindow("hello", 300, 0);
+                    cv::imshow("hello", img);*/
+                    tiny_dnn::vec_t ret(img.cols * img.rows);
+                    for (int i = 0; i < img.rows; i++){
+                        auto ptr = img.ptr(i);
+                        for (int j = 0; j < img.cols; j++)
+                            ret[i * img.cols + j] = ptr[j] / float_t(255) * 2 - 1;
+                    }
+                    aTrainImages.push_back(ret);
+                    aTrainLabels.push_back(shp.value("label").toString().toInt());
+                }
+            }
+            fl.close();
+        }
+
+    int sz = aTrainImages.size();
     srand( (unsigned)time(NULL));
-    for (int i = 0; i < 45000; ++i){
-        auto idx = std::rand() % 12;
-        aTrainLabels.push_back(idx);
-        aTrainImages.push_back(imgs->at(idx));
+    for (int i = sz; i < 45000; ++i){
+        auto idx = std::rand() % sz;
+        aTrainLabels.push_back(aTrainLabels.at(idx));
+        aTrainImages.push_back(aTrainImages.at(idx));
     }
     for (int i = 0; i < 15000; ++i){
-        auto idx = std::rand() % 12;
-        aTestLabels.push_back(idx);
-        aTestImages.push_back(imgs->at(idx));
+        auto idx = std::rand() % sz;
+        aTestLabels.push_back(aTrainLabels.at(idx));
+        aTestImages.push_back(aTrainImages.at(idx));
     }
 }
 
-void trainGemModel(const std::string& aDirectory){
-  int n_train_epochs = 30;
+void trainGemModel(){
+  int n_train_epochs = 1;
   tiny_dnn::core::backend_t backend_type = tiny_dnn::core::default_engine();
   double learning_rate = 1;
   int n_minibatch = 16;
@@ -208,7 +234,7 @@ void trainGemModel(const std::string& aDirectory){
 
   std::vector<tiny_dnn::label_t> train_labels, test_labels;
   std::vector<tiny_dnn::vec_t> train_images, test_images;
-  prepareTrainData(aDirectory, train_labels, test_labels, train_images, test_images);
+  prepareTrainData(train_labels, test_labels, train_images, test_images);
 
   std::cout << "start training" << std::endl;
   tiny_dnn::progress_display disp(train_images.size());
@@ -236,7 +262,7 @@ void trainGemModel(const std::string& aDirectory){
   std::cout << "end training." << std::endl;
 
   nn.test(test_images, test_labels).print_detail(std::cout);
-  nn.save("LeNet-model");
+  nn.save("Gem-LeNet-model");
 }
 
 //my infer
