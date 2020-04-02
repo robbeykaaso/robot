@@ -54,7 +54,7 @@ static const bool tbl[] = {
      << conv(5, 5, 5, 16, 120,   // C5, 16@5x5-in, 120@1x1-out
              padding::valid, true, 1, 1, 1, 1, backend_type)
      << tanh()
-     << fc(120, 10, true, backend_type)  // F6, 120-in, 10-out
+     << fc(120, 11, true, backend_type)  // F6, 120-in, 12-out
      << tanh();
 }
 
@@ -221,7 +221,7 @@ void prepareTrainData(std::vector<tiny_dnn::label_t>& aTrainLabels, std::vector<
 }
 
 void trainGemModel(){
-  int n_train_epochs = 1;
+  int n_train_epochs = 4;
   tiny_dnn::core::backend_t backend_type = tiny_dnn::core::default_engine();
   double learning_rate = 1;
   int n_minibatch = 16;
@@ -229,7 +229,8 @@ void trainGemModel(){
 
   tiny_dnn::network<tiny_dnn::sequential> nn;
   tiny_dnn::adagrad optimizer;
-  construct_net(nn, backend_type);
+  //construct_net(nn, backend_type);
+  nn.load("Gem-LeNet-model", tiny_dnn::content_type::weights_and_model, tiny_dnn::file_format::json);
   std::cout << "load models..." << std::endl;
 
   std::vector<tiny_dnn::label_t> train_labels, test_labels;
@@ -261,11 +262,29 @@ void trainGemModel(){
                           on_enumerate_epoch);
   std::cout << "end training." << std::endl;
 
-  nn.test(test_images, test_labels).print_detail(std::cout);
-  nn.save("Gem-LeNet-model");
+  auto ret = nn.test(test_images, test_labels);
+  ret.print_detail(std::cout);
+  nn.save("Gem-LeNet-model", tiny_dnn::content_type::weights_and_model, tiny_dnn::file_format::json);
 }
 
 //my infer
+
+void dnnTest(){
+    tiny_dnn::network<tiny_dnn::sequential> nn;
+    nn.load("test-model", tiny_dnn::content_type::weights_and_model, tiny_dnn::file_format::json);
+    tiny_dnn::vec_t data;
+    data.push_back(1);
+    data.push_back(0);
+    data.push_back(0);
+    data.push_back(0);
+    data.push_back(1);
+    data.push_back(0);
+    data.push_back(0);
+    data.push_back(0);
+    data.push_back(1);
+    auto res = nn.predict(data);
+    int test = 0;
+}
 
 void convert_image(const cv::Mat& aImage,
                    double minv,

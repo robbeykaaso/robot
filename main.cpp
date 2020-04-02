@@ -78,7 +78,12 @@ void testCVAlg(){
 }
 
 void testCVAlg2(){
-
+    auto img = cv::imread("F:/ttt/Hearthstone Screenshot 03-30-20 20.57.10.png");
+    cv::cvtColor(img, img, cv::COLOR_RGB2GRAY);
+    cv::resize(img, img, cv::Size(224, 224));
+    cv::imshow("hello", img);
+    //cv::ellipse(img, cv::Point(100, 100), cv::Size(200, 150), 0, 0, 360, cv::Scalar(0, 0, 255), - 1, 8);
+    cv::imshow("匹配后的图像", img);
 }
 
 int main(int argc, char *argv[])

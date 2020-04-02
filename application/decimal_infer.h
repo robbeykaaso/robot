@@ -5,5 +5,6 @@
 
 int recognizeNumber(const cv::Mat& aROI);
 void trainGemModel();
+void dnnTest();
 
 #endif

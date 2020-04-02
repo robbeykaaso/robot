@@ -217,6 +217,7 @@ REGISTERPipe(collectShapeCommand, mdydnn, [](std::shared_ptr<dst::streamData> aI
     QJsonObject items;
     items.insert("crop", "commandCrop");
     items.insert("train", "commandTrainGem");
+    items.insert("dnntest", "commandDnnTest");
     aInput->callback(&items);
     return aInput;
 }, 0);

@@ -336,6 +336,11 @@ public:
             trainGemModel();
             return aInput;
         });
+
+        dst::streamManager::instance()->registerEvent("commandDnnTest", "mdyHearthStone", [this](std::shared_ptr<dst::streamData> aInput){
+            dnnTest();
+            return aInput;
+        });
     }
 protected:
     void calcScene(const QImage& aImage) override{
