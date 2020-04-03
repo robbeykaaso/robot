@@ -169,7 +169,71 @@ void recognize(const std::string &dictionary, const std::string &src_filename) {
 
 //my train
 
-void prepareTrainData(std::vector<tiny_dnn::label_t>& aTrainLabels, std::vector<tiny_dnn::label_t>& aTestLabels,
+//粗定位网络
+
+//原图:1920 * 1017
+//目标:111 * 152
+
+//肉眼缩小5倍仍能识别定位：
+//原图: 384 * 203
+//目标: 22 * 30
+//输出为结果为输出图像上的一点
+
+//第一部分：局部特征提取并拟合
+//第一层：提取椭圆轮廓对称6点局部纹理，由于轮廓较窄，宽度在缩小5倍后约1像素，故第一层卷积核为1 * 1 * 6 -> 原图: 384 * 203 * 6 目标： 22 * 30 * 6
+//第二部分：局部特征相对位置特征提取并拟合，目的将目标通过卷积描述的相对位置特征缩成一点，该点为最终变换原图中的位置，故需要将目标尺寸通过变换缩到5*5或3*3以减少最后一步卷积的计算量；
+//考虑池化，如果池化一次步长太大，那么可能直接导致原图识别关键信息损失，所以采用多步池化
+//第二层：max_pool stride_x:2 stride_y:3 -> 原图：192 * 68 * 6 目标： 11 * 10 * 6
+//第三层：max_pool stride_x:2 stride_y:5 -> 原图：96 * 34 * 6 目标：5 * 5 * 6
+//第四层：卷积核 5 * 5 * 6 -> 92 * 30 目标：1
+//如果追加全连接层转码成坐标位置，由于连接数过大，会导致计算过慢，所以这边输出直接为图上一点
+//输入：一张原图缩小到 384 * 203 的图片，输出：92 * 30的图片，其中某一点为1，表示定位目标位置
+
+void construct_detect_net1(tiny_dnn::network<tiny_dnn::sequential> &nn,
+                          tiny_dnn::core::backend_t backend_type) {
+  using fc = tiny_dnn::layers::fc;
+  using conv = tiny_dnn::layers::conv;
+  using max_pool = tiny_dnn::layers::max_pool;
+  using tanh = tiny_dnn::activation::tanh;
+
+  using tiny_dnn::core::connection_table;
+  using padding = tiny_dnn::padding;
+
+  nn << conv(384, 203, 1, 1, 6,
+             padding::valid, true, 1, 1, 1, 1, backend_type)
+     << tanh()
+     << max_pool(384, 203, 6, 2, 3, 2, 3)
+     << tanh()
+     << max_pool(192, 68, 6, 2, 2, 2, 2)
+     << tanh()
+     << conv(96, 34, 5, 6, 1, padding::valid, true, 1, 1, 1, 1, backend_type)
+     << tanh();
+}
+
+void trainDetect1Model(){
+
+}
+
+//细定位网络
+
+//由于粗定位网络，因为缩放，所以最终结果存在定位误差ceil(1920 / 92 = 21), ceil(1017 / 30 = 34)
+//所以细定位网络输入原始图像应为 (111 + 2 * 21) * (152 + 2 * 34) = 153 * 220（从原图截取的指定尺寸目标框），
+//目标图尺寸仍为:111 * 152
+//输出结果为4个坐标（不能为图像上的一点，因为池化过程会损失定位精度，但目的仍然是让目标缩成一点，然后将结果输出图全卷积为四个坐标）
+//第一部分：局部特征提取并拟合
+//第一层：提取椭圆轮廓对称6点局部纹理，卷积核为 3 * 3 * 6 -> 原图: 151 * 218 * 6 目标: 109 * 150
+//第二部分：提取6个位置的相对位置信息
+//第二层：max_pool stride_x 4 stride_y 5 -> 原图: 38 * 44 * 6 目标: 28 * 30
+//第三层: conv  3 * 3 * 2 -> 36 * 42 * 12 目标: 26 * 28
+//第四层: max_pool stride_x 4 stride_y 4 -> 原图: 9 * 10 * 12 目标: 6 * 7
+//第五层: 全连接 输出 4个位置
+
+
+void trainDetect2Model(){
+
+}
+
+void prepareGemTrainData(std::vector<tiny_dnn::label_t>& aTrainLabels, std::vector<tiny_dnn::label_t>& aTestLabels,
     std::vector<tiny_dnn::vec_t>& aTrainImages, std::vector<tiny_dnn::vec_t>& aTestImages){
 
     QString rel_dir = "config_/hearthStone/imageInfo";
@@ -229,13 +293,13 @@ void trainGemModel(){
 
   tiny_dnn::network<tiny_dnn::sequential> nn;
   tiny_dnn::adagrad optimizer;
-  //construct_net(nn, backend_type);
-  nn.load("Gem-LeNet-model", tiny_dnn::content_type::weights_and_model, tiny_dnn::file_format::json);
+  construct_net(nn, backend_type);
+  //nn.load("Gem-LeNet-model", tiny_dnn::content_type::weights_and_model, tiny_dnn::file_format::json);
   std::cout << "load models..." << std::endl;
 
   std::vector<tiny_dnn::label_t> train_labels, test_labels;
   std::vector<tiny_dnn::vec_t> train_images, test_images;
-  prepareTrainData(train_labels, test_labels, train_images, test_images);
+  prepareGemTrainData(train_labels, test_labels, train_images, test_images);
 
   std::cout << "start training" << std::endl;
   tiny_dnn::progress_display disp(train_images.size());
