@@ -264,12 +264,14 @@ void prepareGemTrainData(std::vector<tiny_dnn::label_t>& aTrainLabels, std::vect
                             ret[i * img.cols + j] = ptr[j] / float_t(255) * 2 - 1;
                     }
                     aTrainImages.push_back(ret);
+                    aTestImages.push_back(ret);
                     aTrainLabels.push_back(shp.value("label").toString().toInt());
+                    aTestLabels.push_back(shp.value("label").toString().toInt());
                 }
             }
             fl.close();
         }
-
+   // return ;
     int sz = aTrainImages.size();
     srand( (unsigned)time(NULL));
     for (int i = sz; i < 45000; ++i){
@@ -277,7 +279,7 @@ void prepareGemTrainData(std::vector<tiny_dnn::label_t>& aTrainLabels, std::vect
         aTrainLabels.push_back(aTrainLabels.at(idx));
         aTrainImages.push_back(aTrainImages.at(idx));
     }
-    for (int i = 0; i < 15000; ++i){
+    for (int i = sz; i < 15000; ++i){
         auto idx = std::rand() % sz;
         aTestLabels.push_back(aTrainLabels.at(idx));
         aTestImages.push_back(aTrainImages.at(idx));
@@ -293,15 +295,15 @@ void trainGemModel(){
 
   tiny_dnn::network<tiny_dnn::sequential> nn;
   tiny_dnn::adagrad optimizer;
-  construct_net(nn, backend_type);
-  //nn.load("Gem-LeNet-model", tiny_dnn::content_type::weights_and_model, tiny_dnn::file_format::json);
+  //construct_net(nn, backend_type);
+  nn.load("Gem-LeNet-model", tiny_dnn::content_type::weights_and_model, tiny_dnn::file_format::json);
   std::cout << "load models..." << std::endl;
 
   std::vector<tiny_dnn::label_t> train_labels, test_labels;
   std::vector<tiny_dnn::vec_t> train_images, test_images;
   prepareGemTrainData(train_labels, test_labels, train_images, test_images);
 
-  std::cout << "start training" << std::endl;
+/*  std::cout << "start training" << std::endl;
   tiny_dnn::progress_display disp(train_images.size());
   tiny_dnn::timer t;
   optimizer.alpha *=
@@ -324,7 +326,7 @@ void trainGemModel(){
   nn.train<tiny_dnn::mse>(optimizer, train_images, train_labels, n_minibatch,
                           n_train_epochs, on_enumerate_minibatch,
                           on_enumerate_epoch);
-  std::cout << "end training." << std::endl;
+  std::cout << "end training." << std::endl;*/
 
   auto ret = nn.test(test_images, test_labels);
   ret.print_detail(std::cout);
@@ -362,18 +364,18 @@ void convert_image(const cv::Mat& aImage,
     // mnist dataset is "white on black", so negate required
     std::transform(
         resized.begin(), resized.end(), std::back_inserter(data),
-        [=](uint8_t c) { return (255 - c) * (maxv - minv) / 255.0 + minv; });
+        [=](uint8_t c) { return (c) * (maxv - minv) / 255.0 + minv; });
 }
 
 int recognizeNumber(const cv::Mat& aROI){
     tiny_dnn::network<tiny_dnn::sequential> nn;
-    nn.load("LeNet-model");
+    nn.load("Gem-LeNet-model", tiny_dnn::content_type::weights_and_model, tiny_dnn::file_format::json);
     tiny_dnn::vec_t data;
     convert_image(aROI, -1.0, 1.0, 32, 32, data);
     auto res = nn.predict(data);
     std::vector<std::pair<double, int>> scores;
-    for (int i = 0; i < 10; i++)
-        scores.emplace_back(res[i], i);
+    for (int i = 0; i < 11; i++)
+        scores.emplace_back(rescale<tiny_dnn::tanh_layer>(res[i]), i);
     sort(scores.begin(), scores.end(), std::greater<std::pair<double, int>>());
     return scores[0].second;
 }

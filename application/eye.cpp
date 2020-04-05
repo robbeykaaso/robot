@@ -19,7 +19,7 @@ public:
 
             TRIG("handleImage", stm);
         });
-        m_timer.start(1000);
+        m_timer.start(2000);
     }
 private:
     QTimer m_timer;

@@ -145,6 +145,7 @@ class selectScene : public scene{
 private:
     cv::Rect m_loc_3[3];
     cv::Rect m_loc_4[4];
+    cv::Rect m_split;
 protected:
     std::vector<std::shared_ptr<card>> m_cards;
     int m_tick = 0;
@@ -155,9 +156,11 @@ private:
             cv::Mat roi2;
             cv::resize(roi, roi2, cv::Size(32, 32));
             if (!m_tick++){
-                cv::imshow("匹配后的图像", roi2);
+           //     cv::imshow("匹配后的图像", roi2);
             }
             aNumber = recognizeNumber(roi2);
+            cv::imwrite("config_/" + QString::number(aNumber).toStdString() + "_" +
+                        QString::number(m_tick).toStdString() + ".png", roi2);
             return aNumber >= 0;
         }else
             return false;
@@ -168,29 +171,30 @@ public:
             loadFeaturePos("select3_" + QString::number(i), m_loc_3[i]);
         for (int i = 0; i < 4; ++i)
             loadFeaturePos("select4_" + QString::number(i), m_loc_4[i]);
+        loadFeaturePos("select_split", m_split);
     }
     double isCurrentScene(const cv::Mat& aScreen) override{
-        int cost[4];
+        double minValue, maxValue;
+        cv::Point minLocation, maxLocation;
+        cv::Point matchLocation;
+        auto split = aScreen(m_split);
+        minMaxLoc(split, &minValue, &maxValue, &minLocation, &maxLocation, cv::Mat());
 
-        int valid = 0;
-        for (int i = 0; i < 3; ++i)
-            valid = isValidGem(m_loc_3[i], aScreen, cost[i]) ? valid + 1 : valid;
-        if (valid == 3){
-            for (int i = 0; i < 3; ++i)
-                m_cards.push_back(std::make_shared<card>(i, cost[i]));
-            return 1;
+        cv::Rect* tgt = m_loc_3;
+        int sum = 3;
+        if (maxValue > 55){
+            tgt = m_loc_4;
+            sum = 4;
         }
-
-        valid = 0;
-        for (int i = 0; i < 4; ++i)
-            valid = isValidGem(m_loc_4[i], aScreen, cost[i]) ? valid + 1 : valid;
-        if (valid == 4){
-            for (int i = 0; i < 4; ++i)
-                m_cards.push_back(std::make_shared<card>(i, cost[i]));
-            return 1;
+        for (int i = 0; i < sum; ++i){
+            int cost;
+            isValidGem(tgt[i], aScreen, cost);
+            m_cards.push_back(std::make_shared<card>(i, cost));
         }
+        cv::imwrite("config_/src.png", aScreen);
 
-        return 0;
+
+        return 1;
     }
 };
 
@@ -205,8 +209,10 @@ public:
         loadFeaturePos("firstSelect", m_loc);
     }
     double isCurrentScene(const cv::Mat& aScreen) override{
-        selectScene::isCurrentScene(aScreen);
-        return calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc);
+        auto ret = calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc);
+        if (ret > 0)
+            selectScene::isCurrentScene(aScreen);
+        return ret;
     }
     void updateModel(std::shared_ptr<cardsModel> aCards) override{
         for (auto i : m_cards)
@@ -266,6 +272,7 @@ public:
         m_cards_model = aCards;
 
         int card_count = m_cards_model->getCardsCount();
+        return;
         if (card_count < 10){
             auto pos = m_cards_model->getCardPos(card_count);
             auto roi = m_screen(pos);
@@ -274,8 +281,8 @@ public:
         }
     }
     QJsonObject calcOperation() override{
-        attackEnemy();
-        placeCards();
+        //attackEnemy();
+        //placeCards();
         return dst::Json("type", "click", "org", dst::JArray(m_opt_loc.x + m_opt_loc.width * 0.5, m_opt_loc.y + m_opt_loc.height * 0.5));
     }
 };
