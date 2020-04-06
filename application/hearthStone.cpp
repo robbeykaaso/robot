@@ -44,26 +44,31 @@ public:
         QImage img("config_/hearthStone/" + aName + ".png");
         if (!img.isNull()){
             auto cv_img = QImage2cvMat(img);
-            cv::cvtColor(cv_img, cv_img, cv::COLOR_RGB2GRAY);
-            normalize(cv_img, aFeature, 0, 1, cv::NORM_MINMAX);
+            cv::cvtColor(cv_img, aFeature, cv::COLOR_RGB2GRAY);
         }
     }
 protected:
-    double calcFeatureIOU(const cv::Mat& aBackground, const cv::Mat& aFeature, const cv::Rect& aPos, cv::Rect& aRetPos){
+    double calcFeatureIOU(const cv::Mat& aBackground, const cv::Mat& aFeature, const cv::Rect& aPos, cv::Rect& aRetPos, const cv::Mat& aMask = cv::Mat()){
         if (aFeature.cols == 0 || aFeature.rows == 0 || aPos.width == 0 || aPos.height == 0)
             return 0;
         auto src = aBackground(cv::Rect(aPos.x - 5, aPos.y - 5, aPos.width + 5, aPos.height + 5));
-        normalize(src, src, 0, 1, cv::NORM_MINMAX);
 
         cv::Mat ret;
-        cv::matchTemplate(src, aFeature, ret, cv::TemplateMatchModes::TM_SQDIFF_NORMED);
+        if (aMask.cols == 0){
+            normalize(src, src, 0, 1, cv::NORM_MINMAX);
+            cv::Mat fe;
+            normalize(aFeature, fe, 0, 1, cv::NORM_MINMAX);
+            cv::matchTemplate(src, fe, ret, cv::TemplateMatchModes::TM_SQDIFF_NORMED);
+        }else
+            cv::matchTemplate(src, aFeature, ret, cv::TemplateMatchModes::TM_CCORR_NORMED, aMask);
 
         double minValue, maxValue;
         cv::Point minLocation, maxLocation;
         cv::Point matchLocation;
         minMaxLoc(ret, &minValue, &maxValue, &minLocation, &maxLocation, cv::Mat());
 
-        if (minValue < 0.05){
+        if ((aMask.cols == 0 && minValue < 0.05) ||
+            (aMask.cols > 0 && maxValue > 0.95)){
             cv::Rect target(minLocation.x, minLocation.y, aPos.width, aPos.height), origin(5, 5, aPos.width, aPos.height);
             aRetPos = cv::Rect(minLocation.x - 5 + aPos.x, minLocation.y - 5 + aPos.y, aPos.width, aPos.height);
             return (target & origin).area() * 1.0 / (target | origin).area();
@@ -329,11 +334,22 @@ private:
     cv::Rect m_opt_loc;
 public:
     gameOverScene() : scene(){
+        loadFeaturePos("m_loc", m_loc);
         loadFeatureImage("gameOver", m_button);
-        loadFeaturePos("gameOver", m_loc);
+        if (m_button.cols > 0 && m_button.rows > 0){
+            cv::Mat feature(m_button.rows, m_button.cols, CV_8UC1, cv::Scalar(0, 0, 0));
+            for (int i = 0; i < 5; ++i){
+                cv::Rect loc;
+                loadFeaturePos("gameOver_" + QString::number(i), loc);
+                if (loc.width > 0 && loc.height > 0)
+                    m_button(loc).clone().copyTo(feature(loc));
+            }
+            m_button = feature;
+           //cv::imshow("hello", m_button);
+        }
     }
     double isCurrentScene(const cv::Mat& aScreen, const QImage& aOrigin) override{
-        return calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc);
+        return calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc, m_button);
     }
     void updateModel(std::shared_ptr<cardsModel> aCards) override{
         aCards.reset();

@@ -89,7 +89,7 @@ void testCVAlg2(){
 int main(int argc, char *argv[])
 {
     //testCVAlg();
-    testCVAlg2();
+    //testCVAlg2();
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
     QApplication app(argc, argv);
     app.setWindowIcon(QIcon(dst::getCWD("/favicon.png")));
