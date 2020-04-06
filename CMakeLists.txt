@@ -42,7 +42,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE Qt5::Core Qt5::Quick Qt5::Widgets 
 #include_directories("${deepinspectapptemplate_ROOT}/deepinspectControl")
 include_directories(${OpenCV_INCLUDE_DIRS})
 include_directories(${STMMAN_INCLUDE_DIRS})
-include_directories("F:/tinnydnn/tiny-dnn")
+include_directories("D:/thirdParty/tinydnn/tiny-dnn")
 #include_directories(${RapidJSON_INCLUDE_DIRS})
 #include_directories(${DeepInspectSDK_INCLUDE_DIRS})
 #include_directories(${RxCpp_INCLUDE_DIRS})

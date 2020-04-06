@@ -2,6 +2,7 @@
 #include "../framework/util.h"
 #include "decimal_infer.h"
 #include <QJsonDocument>
+#include <QDir>
 #include <opencv2/opencv.hpp>
 
 class card{
@@ -25,7 +26,7 @@ class cardsModel;
 class scene{
 public:
     virtual ~scene(){}
-    virtual double isCurrentScene(const cv::Mat& aScreen) = 0;
+    virtual double isCurrentScene(const cv::Mat& aScreen, const QImage& aOrigin) = 0;
     virtual void updateModel(std::shared_ptr<cardsModel> aCards) = 0;
     virtual QJsonObject calcOperation() = 0;
     static void loadFeaturePos(const QString& aName, cv::Rect& aPos){
@@ -130,7 +131,7 @@ public:
         loadFeaturePos("ready", m_loc);
         loadFeatureImage("ready", m_button);
     }
-    double isCurrentScene(const cv::Mat& aScreen) override{
+    double isCurrentScene(const cv::Mat& aScreen, const QImage& aOrigin) override{
         return calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc);
     }
     void updateModel(std::shared_ptr<cardsModel> aCards) override{
@@ -159,8 +160,6 @@ private:
            //     cv::imshow("匹配后的图像", roi2);
             }
             aNumber = recognizeNumber(roi2);
-            cv::imwrite("config_/" + QString::number(aNumber).toStdString() + "_" +
-                        QString::number(m_tick).toStdString() + ".png", roi2);
             return aNumber >= 0;
         }else
             return false;
@@ -173,7 +172,7 @@ public:
             loadFeaturePos("select4_" + QString::number(i), m_loc_4[i]);
         loadFeaturePos("select_split", m_split);
     }
-    double isCurrentScene(const cv::Mat& aScreen) override{
+    double isCurrentScene(const cv::Mat& aScreen, const QImage& aOrigin) override{
         double minValue, maxValue;
         cv::Point minLocation, maxLocation;
         cv::Point matchLocation;
@@ -191,8 +190,23 @@ public:
             isValidGem(tgt[i], aScreen, cost);
             m_cards.push_back(std::make_shared<card>(i, cost));
         }
-        cv::imwrite("config_/src.png", aScreen);
+        //cv::imwrite("config_/src.png", aScreen);
 
+        QDir().mkdir("config_/image");
+        QDir().mkdir("config_/imageInfo");
+        auto id = dst::configObject::generateObjectID();
+        aOrigin.save("config_/image/" + id + ".png");
+        QJsonObject cfg;
+        cfg.insert("id", id);
+        cfg.insert("images", dst::JArray(id + "/" + QString::number(sum) + ".png"));
+        QJsonObject shps;
+        for (int i = 0; i < sum; ++i){
+            shps.insert(dst::configObject::generateObjectID(),
+                        dst::Json("label", QString::number(m_cards.at(i)->getCost()),
+                                  "type", "rectangle",
+                                  "points", dst::JArray(tgt[i].x, tgt[i].y, tgt[i].x + tgt[i].width, tgt[i].y + tgt[i].height)));
+        }
+        cfg.insert("shapes", shps);
 
         return 1;
     }
@@ -208,10 +222,10 @@ public:
         loadFeatureImage("firstSelect", m_button);
         loadFeaturePos("firstSelect", m_loc);
     }
-    double isCurrentScene(const cv::Mat& aScreen) override{
+    double isCurrentScene(const cv::Mat& aScreen, const QImage& aOrigin) override{
         auto ret = calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc);
         if (ret > 0)
-            selectScene::isCurrentScene(aScreen);
+            selectScene::isCurrentScene(aScreen, aOrigin);
         return ret;
     }
     void updateModel(std::shared_ptr<cardsModel> aCards) override{
@@ -262,7 +276,7 @@ public:
         loadFeatureImage("myTurn", m_button);
         loadFeaturePos("myTurn", m_loc);
     }
-    double isCurrentScene(const cv::Mat &aScreen) override{
+    double isCurrentScene(const cv::Mat &aScreen, const QImage& aOrigin) override{
         auto ret = calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc);
         if (ret == 1.0)
             m_screen = aScreen;
@@ -296,7 +310,7 @@ public:
         loadFeatureImage("enemyTurn", m_button);
         loadFeaturePos("enemyTurn", m_loc);
     }
-    double isCurrentScene(const cv::Mat &aScreen) override{
+    double isCurrentScene(const cv::Mat &aScreen, const QImage& aOrigin) override{
         cv::Rect mt;
         return calcFeatureIOU(aScreen, m_button, m_loc, mt);
     }
@@ -318,7 +332,7 @@ public:
         loadFeatureImage("gameOver", m_button);
         loadFeaturePos("gameOver", m_loc);
     }
-    double isCurrentScene(const cv::Mat& aScreen) override{
+    double isCurrentScene(const cv::Mat& aScreen, const QImage& aOrigin) override{
         return calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc);
     }
     void updateModel(std::shared_ptr<cardsModel> aCards) override{
@@ -359,7 +373,7 @@ protected:
         cv::cvtColor(cv_img, dst, cv::COLOR_RGB2GRAY);
 
         for (auto i : m_scenes){
-            auto scr = i->isCurrentScene(dst);
+            auto scr = i->isCurrentScene(dst, aImage);
             if (scr > score && scr > 0.5){
                 m_current_scene = i;
             }

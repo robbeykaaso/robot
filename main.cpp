@@ -78,10 +78,10 @@ void testCVAlg(){
 }
 
 void testCVAlg2(){
-    auto img = cv::imread("E:/test.png");
+    auto img = cv::imread("F:/ttt/Hearthstone Screenshot 03-30-20 20.57.10.png");
     cv::cvtColor(img, img, cv::COLOR_RGB2GRAY);
     //cv::resize(img, img, cv::Size(384, 203));
-    threshold(img, img, 45, 255, cv::THRESH_BINARY);
+    //threshold(img, img, 45, 255, cv::THRESH_BINARY);
     cv::imshow("hello", img);
     //cv::ellipse(img, cv::Point(100, 100), cv::Size(200, 150), 0, 0, 360, cv::Scalar(0, 0, 255), - 1, 8);
 }
@@ -89,7 +89,7 @@ void testCVAlg2(){
 int main(int argc, char *argv[])
 {
     //testCVAlg();
-    //testCVAlg2();
+    testCVAlg2();
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
     QApplication app(argc, argv);
     app.setWindowIcon(QIcon(dst::getCWD("/favicon.png")));
