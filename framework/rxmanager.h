@@ -92,10 +92,10 @@ public:
     threadEvent(QJSValue aFunc, const QString& aEventName = "");
     ~threadEvent() override;
     virtual void execute(std::shared_ptr<streamData> aStream);
-    threadEvent* previous(threadEvent* aPrevious);
-    threadEvent* next(threadEvent* aNext);
-    threadEvent* previous(const QString& aSignal, const QString& aEventName);
-    threadEvent* next(const QString& aSignal, const QString& aEventName);
+    threadEvent* previous(threadEvent* aPrevious, bool isPipe = false);
+    threadEvent* next(threadEvent* aNext, bool isPipe = false);
+    threadEvent* previous(const QString& aSignal, const QString& aEventName, bool isPipe = false);
+    threadEvent* next(const QString& aSignal, const QString& aEventName, bool isPipe = false);
 protected:
     void setName(const QString& aEventName);
     bool event( QEvent* e) override;
@@ -120,7 +120,7 @@ private:
     };
 protected:
     QSet<QString> m_previous;
-    QMap<QString, bool> m_nexts; //qset is unordered, but qmap is ordered
+    QMap<QString, bool> m_next; //qset is unordered, but qmap is ordered
 private:
     friend streamManager;
 };
@@ -160,7 +160,8 @@ private:
 
 class DSTDLL streamManager{
 public:
-    SINGLENTON(streamManager)
+    //SINGLENTON(streamManager)
+    static streamManager* instance();
 public:
     QQmlApplicationEngine *engine = nullptr;
     friend threadEvent;
@@ -173,6 +174,7 @@ public:
     threadEvent* registerJSEvent(const QString& aSignal, const QString& aEventName, QJSValue aFunc,
                                                  const QString& aPreviouses = "", const QString& aNexts = "");
     void emitSignal(const QString& aSignal, std::shared_ptr<streamData> aInput = nullptr);
+    void emitSignal(const QString& aSignal, const QString& aEvent, std::shared_ptr<streamData> aInput = nullptr);
     static void testSequence();
     static void testDynamicRegister();
 public:
@@ -198,6 +200,9 @@ public:
 
 #define TRIG(aSignal, aStream) \
     dst::streamManager::instance()->emitSignal(aSignal, aStream);
+
+#define TRIG2(aSignal, aEvent, aStream) \
+    dst::streamManager::instance()->emitSignal(aSignal, aEvent, aStream);
 
 #define STMJSON \
     std::make_shared<dst::streamJson>

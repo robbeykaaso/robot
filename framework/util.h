@@ -23,6 +23,8 @@ DSTDLL void tic();
 DSTDLL int getRandom(int min,int max);
 DSTDLL QHostAddress GetLocalIP();
 DSTDLL QString getWMIC(const QString &cmd);
+DSTDLL QString int2Hex(int aInt);
+DSTDLL QStringList parseJsons(const QString& aContent);
 
 template <typename K, typename T>
 T* tryFind(QMap<K, T>* aMap, const K& aKey){

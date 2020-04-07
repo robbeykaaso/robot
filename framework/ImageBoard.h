@@ -112,7 +112,7 @@ class DSTDLL ImageBoardFilters{
 public:
     ImageBoardFilters(ImageBoard* aParent);
     virtual ~ImageBoardFilters();
-    void initializeFromSource(const QString& aSource);
+    virtual void initializeFromSource(const QString& aSource);
     virtual bool canDisplay(std::shared_ptr<shapeObject> aShapeObject);
 protected:
     const QString mdyImageBoardFilters = "mdyImageBoardFilters";
@@ -124,6 +124,7 @@ class DSTDLL dsImageBoardFilters : public ImageBoardFilters{
 public:
     dsImageBoardFilters(ImageBoard* aParent);
     ~dsImageBoardFilters() override;
+    void initializeFromSource(const QString& aSource) override;
     bool canDisplay(std::shared_ptr<shapeObject> aShapeObject) override;
 private:
     bool m_forbid_show = false;
@@ -134,7 +135,7 @@ class DSTDLL ImageBoard : public QQuickItem{
     Q_PROPERTY(QString name WRITE setName READ getName)
     Q_PROPERTY(QJsonArray plugins WRITE installPlugins)
     Q_PROPERTY(QJsonArray siblings WRITE setSiblings)
-    Q_PROPERTY(QString source WRITE setSource)
+    Q_PROPERTY(QString filter WRITE setFilter)
     Q_PROPERTY(QString custom WRITE setCustomProperies)
 public:
     Q_INVOKABLE void beforeDestroy();
@@ -191,7 +192,7 @@ protected:
     void hoverMoveEvent(QHoverEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
     virtual void setName(const QString& aName);
-    void setSource(const QString& aName);
+    void setFilter(const QString& aFilter);
     virtual void setCustomProperies(const QString& aProperies);
     QSGNode* m_trans_node = nullptr;
     std::shared_ptr<imageObject> m_image_model = nullptr;
@@ -201,6 +202,7 @@ private:
     void uninstallPlugins(bool aUninstall = false);
     void setSiblings(const QJsonArray& aSiblings);
     void trigSiblings(std::shared_ptr<streamJson> aInput, const QString& aSignal);
+    void initializeFilter();
     std::shared_ptr<streamData> createMouseStream(QMouseEvent *aEvent);
     QString m_name = "";
     bool m_needUpdate;
@@ -208,8 +210,11 @@ private:
     QQueue<ImageBoardPlugin*> m_update_queue; //provide update strategy for plugins
     QMap<QString, ImageBoardPlugin*> m_plugins; //provide expanded plugin interfaces
     QJsonArray m_siblings; //provide overlap show stragety
-    QString m_source = ""; //copy filter data from source filter
-    std::shared_ptr<ImageBoardFilters> m_filters;
+    QString m_filter = ""; //copy filter data from source filter
+    std::shared_ptr<ImageBoardFilters> m_filters = nullptr;
+private:
+    std::shared_ptr<imageObject> m_post_image_model = nullptr;
+    bool m_showing = false;
 };
 
 }

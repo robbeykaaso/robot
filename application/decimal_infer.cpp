@@ -1,5 +1,4 @@
 #include "decimal_infer.h"
-#include "tiny_dnn/tiny_dnn.h"
 #include "tiny_dnn/util/image.h"
 #include <QDir>
 #include <QJsonDocument>
@@ -233,17 +232,29 @@ void trainDetect2Model(){
 
 }
 
-void prepareGemTrainData(std::vector<tiny_dnn::label_t>& aTrainLabels, std::vector<tiny_dnn::label_t>& aTestLabels,
-    std::vector<tiny_dnn::vec_t>& aTrainImages, std::vector<tiny_dnn::vec_t>& aTestImages){
+tiny_dnn::network<tiny_dnn::sequential> trainingServer::prepareNetwork(){
+    tiny_dnn::network<tiny_dnn::sequential> nn;
+    if (QDir().exists("Gem-LeNet-model")){
+        //nn.load("Gem-LeNet-model", tiny_dnn::content_type::weights_and_model, tiny_dnn::file_format::json);
+        nn.load("Gem-LeNet-model");
+        std::cout << "load models..." << std::endl;
+    }
+    else
+        construct_net(nn, m_backend_type);
+    return nn;
+}
 
-    QString rel_dir = "config_/hearthStone/imageInfo";
+void trainingServer::prepareGemTrainData(std::vector<tiny_dnn::label_t>& aTrainLabels, std::vector<tiny_dnn::label_t>& aTestLabels,
+                                         std::vector<tiny_dnn::vec_t>& aTrainImages, std::vector<tiny_dnn::vec_t>& aTestImages, const QString& aRoot){
+
+    QString rel_dir = aRoot + "imageInfo";
     QDir dir(rel_dir);
     for (auto i : dir.entryList())
         if (i != "." && i != ".."){
             QFile fl(rel_dir + "/" + i);
             fl.open(QFile::ReadOnly);
             auto cfg = QJsonDocument::fromJson(fl.readAll()).object();
-            auto img_pth = "config_/hearthStone/image/" + cfg.value("id").toString() + "/" + cfg.value("source").toArray()[0].toString();
+            auto img_pth = aRoot + "image/" + cfg.value("id").toString() + "/" + cfg.value("source").toArray()[0].toString();
             cv::Mat bak = cv::imread(img_pth.toLocal8Bit().toStdString());
             auto shps = cfg.value("shapes").toObject();
             for (auto i : shps.keys()){
@@ -286,33 +297,24 @@ void prepareGemTrainData(std::vector<tiny_dnn::label_t>& aTrainLabels, std::vect
     }
 }
 
-void trainGemModel(){
-  int n_train_epochs = 4;
-  tiny_dnn::core::backend_t backend_type = tiny_dnn::core::default_engine();
-  double learning_rate = 1;
-  int n_minibatch = 16;
-
-
-  tiny_dnn::network<tiny_dnn::sequential> nn;
-  tiny_dnn::adagrad optimizer;
-  construct_net(nn, backend_type);
-  //nn.load("Gem-LeNet-model", tiny_dnn::content_type::weights_and_model, tiny_dnn::file_format::json);
-  std::cout << "load models..." << std::endl;
+void trainingServer::trainGemModel(){
+  auto nn = prepareNetwork();
 
   std::vector<tiny_dnn::label_t> train_labels, test_labels;
   std::vector<tiny_dnn::vec_t> train_images, test_images;
   prepareGemTrainData(train_labels, test_labels, train_images, test_images);
 
+  tiny_dnn::adagrad optimizer;
   std::cout << "start training" << std::endl;
   tiny_dnn::progress_display disp(train_images.size());
   tiny_dnn::timer t;
   optimizer.alpha *=
     std::min(tiny_dnn::float_t(4),
-             static_cast<tiny_dnn::float_t>(sqrt(n_minibatch) * learning_rate));
+             static_cast<tiny_dnn::float_t>(sqrt(m_minibatch) * m_learning_rate));
 
   int epoch = 1;
   auto on_enumerate_epoch = [&]() {
-    std::cout << "Epoch " << epoch << "/" << n_train_epochs << " finished. "
+    std::cout << "Epoch " << epoch << "/" << m_train_epochs << " finished. "
               << t.elapsed() << "s elapsed." << std::endl;
     ++epoch;
     tiny_dnn::result res = nn.test(test_images, test_labels);
@@ -322,9 +324,9 @@ void trainGemModel(){
     t.restart();
   };
 
-  auto on_enumerate_minibatch = [&]() { disp += n_minibatch; };
-  nn.train<tiny_dnn::mse>(optimizer, train_images, train_labels, n_minibatch,
-                          n_train_epochs, on_enumerate_minibatch,
+  auto on_enumerate_minibatch = [&]() { disp += m_minibatch; };
+  nn.train<tiny_dnn::mse>(optimizer, train_images, train_labels, m_minibatch,
+                          m_train_epochs, on_enumerate_minibatch,
                           on_enumerate_epoch);
   std::cout << "end training." << std::endl;
 
@@ -381,3 +383,58 @@ int recognizeNumber(const cv::Mat& aROI){
     sort(scores.begin(), scores.end(), std::greater<std::pair<double, int>>());
     return scores[0].second;
 }
+
+void trainingServer::initialize(){
+    dst::streamManager::instance()->registerEvent("training", "mdysev", [this](std::shared_ptr<dst::streamData> aInput){
+
+        auto nn = prepareNetwork();
+
+        std::vector<tiny_dnn::label_t> train_labels, test_labels;
+        std::vector<tiny_dnn::vec_t> train_images, test_images;
+        prepareGemTrainData(train_labels, test_labels, train_images, test_images);
+
+        tiny_dnn::adagrad optimizer;
+        std::cout << "start training" << std::endl;
+        tiny_dnn::progress_display disp(train_images.size());
+        tiny_dnn::timer t;
+        optimizer.alpha *=
+        std::min(tiny_dnn::float_t(4),
+                 static_cast<tiny_dnn::float_t>(sqrt(m_minibatch) * m_learning_rate));
+
+        int epoch = 1;
+        auto on_enumerate_epoch = [&]() {
+        std::cout << "Epoch " << epoch << "/" << m_train_epochs << " finished. "
+                  << t.elapsed() << "s elapsed." << std::endl;
+        ++epoch;
+        tiny_dnn::result res = nn.test(test_images, test_labels);
+        std::cout << res.num_success << "/" << res.num_total << std::endl;
+
+        disp.restart(train_images.size());
+        t.restart();
+        };
+
+        auto on_enumerate_minibatch = [&]() { disp += m_minibatch; };
+        nn.train<tiny_dnn::mse>(optimizer, train_images, train_labels, m_minibatch,
+                              m_train_epochs, on_enumerate_minibatch,
+                              on_enumerate_epoch);
+        std::cout << "end training." << std::endl;
+
+        auto ret = nn.test(test_images, test_labels);
+        ret.print_detail(std::cout);
+        nn.save("Gem-LeNet-model");
+
+        return aInput;
+    });
+    dst::streamManager::instance()->registerEvent("task_state", "mdysev", [this](std::shared_ptr<dst::streamData> aInput){
+        return aInput;
+    });
+    dst::streamManager::instance()->registerEvent("upload", "mdysev", [this](std::shared_ptr<dst::streamData> aInput){
+        return aInput;
+    });
+}
+
+std::shared_ptr<dst::streamData> InitializeServer(std::shared_ptr<dst::streamData> aInput){
+    trainingServer::instance();
+    return aInput;
+}
+REGISTERPipe2(initializeBackend, inisev, InitializeServer, 0, inistg);

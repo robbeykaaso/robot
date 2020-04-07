@@ -32,9 +32,12 @@ public:
     void setDefaultCommand(const QJsonObject& aDefaultCommand) {m_default_command = aDefaultCommand;}
     void stopCommand(bool aGiveUpDefault = false);
     bool isBusy() {return m_command != nullptr;}
+    void reset();
 protected:
     commandManager();
 private:
+    void undo();
+    void redo();
     std::shared_ptr<command> m_command;
     int m_current = - 1;
     std::vector<std::shared_ptr<command>> m_commands;

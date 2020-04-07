@@ -370,7 +370,7 @@ public:
         m_scenes.push_back(std::make_shared<gameOverScene>());
 
         dst::streamManager::instance()->registerEvent("commandTrainGem", "mdyHearthStone", [this](std::shared_ptr<dst::streamData> aInput){
-            trainGemModel();
+            trainingServer::instance()->trainGemModel();
             return aInput;
         });
 

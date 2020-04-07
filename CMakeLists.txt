@@ -33,6 +33,8 @@ add_executable(${PROJECT_NAME} "main.cpp" #WIN32: to disable the console window
     "application/hand.cpp"
     "application/decimal_infer.h"
     "application/decimal_infer.cpp"
+    "application/testserver.h"
+    "application/testserver.cpp"
 
     "application/hearthStone.cpp"
     "resource/logo.rc")
