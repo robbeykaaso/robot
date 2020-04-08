@@ -232,11 +232,11 @@ void trainDetect2Model(){
 
 }
 
-tiny_dnn::network<tiny_dnn::sequential> trainingServer::prepareNetwork(){
+tiny_dnn::network<tiny_dnn::sequential> trainingServer::prepareNetwork(const QString& aDirectory){
     tiny_dnn::network<tiny_dnn::sequential> nn;
-    if (QDir().exists("Gem-LeNet-model")){
+    if (QDir().exists(aDirectory + "Gem-LeNet-model")){
         //nn.load("Gem-LeNet-model", tiny_dnn::content_type::weights_and_model, tiny_dnn::file_format::json);
-        nn.load("Gem-LeNet-model");
+        nn.load(aDirectory.toStdString() + "Gem-LeNet-model");
         std::cout << "load models..." << std::endl;
     }
     else
@@ -287,7 +287,11 @@ void trainingServer::prepareGemTrainData(std::vector<tiny_dnn::label_t>& aTrainL
     QString rel_dir = "config_/hearthStone/imageInfo";
     QDir dir(rel_dir);
     prepareTrainData(aTrainLabels, aTestLabels, aTrainImages, aTestImages, "config_/hearthStone", dir.entryList());
+    fillData(aTrainLabels, aTestLabels, aTrainImages, aTestImages);
+}
 
+int trainingServer::fillData(std::vector<tiny_dnn::label_t>& aTrainLabels, std::vector<tiny_dnn::label_t>& aTestLabels,
+             std::vector<tiny_dnn::vec_t>& aTrainImages, std::vector<tiny_dnn::vec_t>& aTestImages){
     int sz = aTrainImages.size();
     srand( (unsigned)time(NULL));
     for (int i = sz; i < 45000; ++i){
@@ -300,6 +304,7 @@ void trainingServer::prepareGemTrainData(std::vector<tiny_dnn::label_t>& aTrainL
         aTestLabels.push_back(aTrainLabels.at(idx));
         aTestImages.push_back(aTrainImages.at(idx));
     }
+    return sz;
 }
 
 void trainingServer::trainGemModel(){
@@ -394,9 +399,54 @@ int recognizeNumber(const cv::Mat& aROI){
 }
 
 void trainingServer::initialize(){
+
+    dst::streamManager::instance()->registerEvent("inference", "mdysev", [this](std::shared_ptr<dst::streamData> aInput){
+        auto cfg = reinterpret_cast<dst::streamJson*>(aInput.get())->getData();
+        if (m_job_state != ""  && m_job_state != "upload_finish"){
+            Send(QJsonDocument(dst::Json(
+                                   "id", cfg->value("id"),
+                                   "type", cfg->value("type"),
+                                   "state", "begin",
+                                   "err_code", 1,
+                                   "mgs", "")).toJson(QJsonDocument::Compact).toStdString());
+            return aInput;
+        }
+
+        m_project_id = cfg->value("project_id").toString();
+        m_task_id = cfg->value("task_id").toString();
+        m_job_state = "running";
+        Send(QJsonDocument(dst::Json(
+                               "id", cfg->value("id"),
+                               "type", cfg->value("type"),
+                               "job_id", cfg->value("id"),
+                               "state", "begin",
+                               "err_code", 0,
+                               "mgs", "")).toJson(QJsonDocument::Compact).toStdString());
+
+        auto dt = cfg->value("data").toObject();
+        m_root = dt.value("s3_bucket_name").toString();
+        auto lst = dt.value("uuid_list").toArray();
+        m_anno_list.clear();
+        m_result_list.clear();
+        for (auto i : lst)
+            m_anno_list.push_back(i.toString() + ".json");
+        auto nn = prepareNetwork("models/" + cfg->value("model_id").toString() + "/");
+
+        std::vector<tiny_dnn::label_t> train_labels, test_labels;
+        std::vector<tiny_dnn::vec_t> train_images, test_images;
+        prepareTrainData(train_labels, test_labels, train_images, test_images, m_root, m_anno_list);
+
+        std::vector<tiny_dnn::label_t> test_ret;
+        for (int j = 0; j < test_images.size(); ++j)
+            m_result_list.push_back(QString::number(recognizeNumber(nn, test_images.at(j))));
+        m_job_state = "process_finish";
+
+        return aInput;
+    }, "", "", 1);
+
     dst::streamManager::instance()->registerEvent("training", "mdysev", [this](std::shared_ptr<dst::streamData> aInput){
         auto cfg = reinterpret_cast<dst::streamJson*>(aInput.get())->getData();
-        if (m_job_state != ""){
+        if (m_job_state != "" && m_job_state != "upload_finish"){
             Send(QJsonDocument(dst::Json(
                                    "id", cfg->value("id"),
                                    "type", cfg->value("type"),
@@ -430,40 +480,48 @@ void trainingServer::initialize(){
         std::vector<tiny_dnn::vec_t> train_images, test_images;
         prepareTrainData(train_labels, test_labels, train_images, test_images, m_root, m_anno_list);
 
-        std::vector<tiny_dnn::label_t> test_ret;
-        for (auto j : test_images)
-            m_result_list.push_back(QString::number(recognizeNumber(nn, j)));
-        m_job_state = "process_finish";
+        int sz = fillData(train_labels, test_labels, train_images, test_images);
 
         /*tiny_dnn::adagrad optimizer;
         std::cout << "start training" << std::endl;
         tiny_dnn::progress_display disp(train_images.size());
         tiny_dnn::timer t;
         optimizer.alpha *=
-        std::min(tiny_dnn::float_t(4),
-                 static_cast<tiny_dnn::float_t>(sqrt(m_minibatch) * m_learning_rate));
+            std::min(tiny_dnn::float_t(4),
+                     static_cast<tiny_dnn::float_t>(sqrt(m_minibatch) * m_learning_rate));
 
         int epoch = 1;
         auto on_enumerate_epoch = [&]() {
-        std::cout << "Epoch " << epoch << "/" << m_train_epochs << " finished. "
-                  << t.elapsed() << "s elapsed." << std::endl;
-        ++epoch;
-        tiny_dnn::result res = nn.test(test_images, test_labels);
-        std::cout << res.num_success << "/" << res.num_total << std::endl;
+            std::cout << "Epoch " << epoch << "/" << m_train_epochs << " finished. "
+                      << t.elapsed() << "s elapsed." << std::endl;
+            ++epoch;
+            tiny_dnn::result res = nn.test(test_images, test_labels);
+            std::cout << res.num_success << "/" << res.num_total << std::endl;
 
-        disp.restart(train_images.size());
-        t.restart();
+            disp.restart(train_images.size());
+            t.restart();
         };
 
         auto on_enumerate_minibatch = [&]() { disp += m_minibatch; };
         nn.train<tiny_dnn::mse>(optimizer, train_images, train_labels, m_minibatch,
-                              m_train_epochs, on_enumerate_minibatch,
-                              on_enumerate_epoch);
-        std::cout << "end training." << std::endl;*/
+                                m_train_epochs, on_enumerate_minibatch,
+                                on_enumerate_epoch);
+        std::cout << "end training." << std::endl;
 
-        //auto ret = nn.test(test_images, test_labels);
-        //ret.print_detail(std::cout);
-        //nn.save("Gem-LeNet-model");
+        auto ret = nn.test(test_images, test_labels);
+        ret.print_detail(std::cout);
+        nn.save("Gem-LeNet-model");*/
+
+        QString mdl_dir = "models";
+        QDir().mkdir(mdl_dir);
+        mdl_dir += "/" + cfg->value("id").toString();
+        QDir().mkdir(mdl_dir);
+        nn.save(mdl_dir.toStdString() + "/" + "Gem-LeNet-model");
+
+        std::vector<tiny_dnn::label_t> test_ret;
+        for (int j = 0; j < sz; ++j)
+            m_result_list.push_back(QString::number(recognizeNumber(nn, test_images.at(j))));
+        m_job_state = "process_finish";
 
         return aInput;
     }, "", "", 1);
