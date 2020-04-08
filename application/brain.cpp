@@ -161,11 +161,16 @@ robotBrain::robotBrain() : configObject(QJsonObject()){
                 calcScene(img);
                 updateModel();
                 TRIG("controlWorld", STMJSON(calcOperation()));
-            }
-            m_busy = false;
+            }else
+                m_busy = false;
         }
         return aInput;
     }, "", "", 1);
+
+    dst::streamManager::instance()->registerEvent("controlWorld", "mdybrain",  [this](std::shared_ptr<dst::streamData> aInput){
+        m_busy = false;
+        return aInput;
+    }, "mdyhand", "", 1);
 
     dst::streamManager::instance()->registerEvent("writeImageConfig", "mdybrain",  [this](std::shared_ptr<dst::streamData> aInput){
         aInput->callback(nullptr);

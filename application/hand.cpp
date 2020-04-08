@@ -29,7 +29,7 @@ public:
             else if (cfg->value("type") == "click")
                 mouseClick(cfg->value("org").toArray());
             return aInput;
-        }, "", "", 2);
+        }, "", "", 1);
     }
 };
 

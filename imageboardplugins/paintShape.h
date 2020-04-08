@@ -10,6 +10,7 @@ public:
     drawCommand(const QJsonObject& aConfig, std::shared_ptr<imageObject> aImage) : command(){
         m_image_board = aConfig.value("board").toString();
         m_image = aImage;
+        m_image_id = aImage->getConfig()->value("id").toString();
     }
 
     void onMouseMove(dst::ImageBoard::streamMouse* aInput) override;

@@ -122,7 +122,7 @@ public:
 private:
     int m_cards_count;
     int m_gem_count;
-    std::set<std::shared_ptr<card>> m_cards[10];
+    std::set<std::shared_ptr<card>> m_cards[11];
     cv::Rect m_cards_pos[10][10];
 };
 
@@ -197,13 +197,13 @@ public:
         }
         //cv::imwrite("config_/src.png", aScreen);
 
-        QDir().mkdir("config_/image");
-        QDir().mkdir("config_/imageInfo");
         auto id = dst::configObject::generateObjectID();
-        aOrigin.save("config_/image/" + id + ".png");
+        QDir().mkdir("config_/image");
+        QDir().mkdir("config_/image/" + id);
+        aOrigin.save("config_/image/" + id + "/0.png");
         QJsonObject cfg;
         cfg.insert("id", id);
-        cfg.insert("images", dst::JArray(id + "/" + QString::number(sum) + ".png"));
+        cfg.insert("images", dst::JArray(id + "/0.png"));
         QJsonObject shps;
         for (int i = 0; i < sum; ++i){
             shps.insert(dst::configObject::generateObjectID(),
@@ -212,6 +212,12 @@ public:
                                   "points", dst::JArray(tgt[i].x, tgt[i].y, tgt[i].x + tgt[i].width, tgt[i].y + tgt[i].height)));
         }
         cfg.insert("shapes", shps);
+
+        QFile fl("config_/image/" + id + ".json");
+        if (fl.open(QFile::WriteOnly)){
+            fl.write(QJsonDocument(cfg).toJson());
+            fl.close();
+        }
 
         return 1;
     }
