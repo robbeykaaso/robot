@@ -19,9 +19,6 @@ private:
     void TryResponseClient(const QJsonObject& aRequest);
     QTcpServer socket_;
     QTcpSocket* client_;
-private:
-    QString m_project_id;
-    QString m_task_id;
 };
 
 #endif

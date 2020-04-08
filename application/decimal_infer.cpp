@@ -244,17 +244,14 @@ tiny_dnn::network<tiny_dnn::sequential> trainingServer::prepareNetwork(){
     return nn;
 }
 
-void trainingServer::prepareGemTrainData(std::vector<tiny_dnn::label_t>& aTrainLabels, std::vector<tiny_dnn::label_t>& aTestLabels,
-                                         std::vector<tiny_dnn::vec_t>& aTrainImages, std::vector<tiny_dnn::vec_t>& aTestImages, const QString& aRoot){
-
-    QString rel_dir = aRoot + "imageInfo";
-    QDir dir(rel_dir);
-    for (auto i : dir.entryList())
+void trainingServer::prepareTrainData(std::vector<tiny_dnn::label_t>& aTrainLabels, std::vector<tiny_dnn::label_t>& aTestLabels,
+    std::vector<tiny_dnn::vec_t>& aTrainImages, std::vector<tiny_dnn::vec_t>& aTestImages, const QString& aRootDirectory, const QStringList& aList){
+    for (auto i : aList)
         if (i != "." && i != ".."){
-            QFile fl(rel_dir + "/" + i);
+            QFile fl(aRootDirectory + "/imageInfo/" + i);
             fl.open(QFile::ReadOnly);
             auto cfg = QJsonDocument::fromJson(fl.readAll()).object();
-            auto img_pth = aRoot + "image/" + cfg.value("id").toString() + "/" + cfg.value("source").toArray()[0].toString();
+            auto img_pth = aRootDirectory + "/image/" + cfg.value("id").toString() + "/" + cfg.value("source").toArray()[0].toString();
             cv::Mat bak = cv::imread(img_pth.toLocal8Bit().toStdString());
             auto shps = cfg.value("shapes").toObject();
             for (auto i : shps.keys()){
@@ -282,7 +279,15 @@ void trainingServer::prepareGemTrainData(std::vector<tiny_dnn::label_t>& aTrainL
             }
             fl.close();
         }
-   // return ;
+}
+
+void trainingServer::prepareGemTrainData(std::vector<tiny_dnn::label_t>& aTrainLabels, std::vector<tiny_dnn::label_t>& aTestLabels,
+                                         std::vector<tiny_dnn::vec_t>& aTrainImages, std::vector<tiny_dnn::vec_t>& aTestImages){
+
+    QString rel_dir = "config_/hearthStone/imageInfo";
+    QDir dir(rel_dir);
+    prepareTrainData(aTrainLabels, aTestLabels, aTrainImages, aTestImages, "config_/hearthStone", dir.entryList());
+
     int sz = aTrainImages.size();
     srand( (unsigned)time(NULL));
     for (int i = sz; i < 45000; ++i){
@@ -370,13 +375,8 @@ void convert_image(const cv::Mat& aImage,
         [=](uint8_t c) { return (255 - c) * (maxv - minv) / 255.0 + minv; });
 }
 
-int recognizeNumber(const cv::Mat& aROI){
-    tiny_dnn::network<tiny_dnn::sequential> nn;
-    //nn.load("Gem-LeNet-model", tiny_dnn::content_type::weights_and_model, tiny_dnn::file_format::json);
-    nn.load("Gem-LeNet-model");
-    tiny_dnn::vec_t data;
-    convert_image(aROI, -1.0, 1.0, 32, 32, data);
-    auto res = nn.predict(data);
+int recognizeNumber(tiny_dnn::network<tiny_dnn::sequential>& aNetwork, const tiny_dnn::vec_t& aROI){
+    auto res = aNetwork.predict(aROI);
     std::vector<std::pair<double, int>> scores;
     for (int i = 0; i < 11; i++)
         scores.emplace_back(rescale<tiny_dnn::tanh_layer>(res[i]), i);
@@ -384,16 +384,56 @@ int recognizeNumber(const cv::Mat& aROI){
     return scores[0].second;
 }
 
+int recognizeNumber(const cv::Mat& aROI){
+    tiny_dnn::network<tiny_dnn::sequential> nn;
+    //nn.load("Gem-LeNet-model", tiny_dnn::content_type::weights_and_model, tiny_dnn::file_format::json);
+    nn.load("Gem-LeNet-model");
+    tiny_dnn::vec_t data;
+    convert_image(aROI, -1.0, 1.0, 32, 32, data);
+    return recognizeNumber(nn, data);
+}
+
 void trainingServer::initialize(){
     dst::streamManager::instance()->registerEvent("training", "mdysev", [this](std::shared_ptr<dst::streamData> aInput){
+        auto cfg = reinterpret_cast<dst::streamJson*>(aInput.get())->getData();
+        if (m_job_state != ""){
+            Send(QJsonDocument(dst::Json(
+                                   "id", cfg->value("id"),
+                                   "type", cfg->value("type"),
+                                   "state", "begin",
+                                   "err_code", 1,
+                                   "mgs", "")).toJson(QJsonDocument::Compact).toStdString());
+            return aInput;
+        }
 
+        m_project_id = cfg->value("project_id").toString();
+        m_task_id = cfg->value("task_id").toString();
+        m_job_state = "running";
+        Send(QJsonDocument(dst::Json(
+            "id", cfg->value("id"),
+            "type", cfg->value("type"),
+            "job_id", cfg->value("id"),
+            "state", "begin",
+            "err_code", 0,
+            "mgs", "")).toJson(QJsonDocument::Compact).toStdString());
+
+        auto lst = cfg->value("data").toObject().value("uuid_list").toArray();
+        m_anno_list.clear();
+        m_result_list.clear();
+        for (auto i : lst)
+            m_anno_list.push_back(i.toString() + ".json");
         auto nn = prepareNetwork();
 
         std::vector<tiny_dnn::label_t> train_labels, test_labels;
         std::vector<tiny_dnn::vec_t> train_images, test_images;
-        prepareGemTrainData(train_labels, test_labels, train_images, test_images);
+        prepareTrainData(train_labels, test_labels, train_images, test_images, m_root, m_anno_list);
 
-        tiny_dnn::adagrad optimizer;
+        std::vector<tiny_dnn::label_t> test_ret;
+        for (auto j : test_images)
+            m_result_list.push_back(QString::number(recognizeNumber(nn, j)));
+        m_job_state = "process_finish";
+
+        /*tiny_dnn::adagrad optimizer;
         std::cout << "start training" << std::endl;
         tiny_dnn::progress_display disp(train_images.size());
         tiny_dnn::timer t;
@@ -417,18 +457,65 @@ void trainingServer::initialize(){
         nn.train<tiny_dnn::mse>(optimizer, train_images, train_labels, m_minibatch,
                               m_train_epochs, on_enumerate_minibatch,
                               on_enumerate_epoch);
-        std::cout << "end training." << std::endl;
+        std::cout << "end training." << std::endl;*/
 
-        auto ret = nn.test(test_images, test_labels);
-        ret.print_detail(std::cout);
-        nn.save("Gem-LeNet-model");
+        //auto ret = nn.test(test_images, test_labels);
+        //ret.print_detail(std::cout);
+        //nn.save("Gem-LeNet-model");
 
         return aInput;
-    });
+    }, "", "", 1);
+
     dst::streamManager::instance()->registerEvent("task_state", "mdysev", [this](std::shared_ptr<dst::streamData> aInput){
+        auto cfg = reinterpret_cast<dst::streamJson*>(aInput.get())->getData();
+        Send(QJsonDocument(dst::Json(
+                               "id", cfg->value("id"),
+                               "type", cfg->value("type"),
+                               "state", m_job_state)).toJson(QJsonDocument::Compact).toStdString());
         return aInput;
     });
     dst::streamManager::instance()->registerEvent("upload", "mdysev", [this](std::shared_ptr<dst::streamData> aInput){
+        Send(QJsonDocument(dst::Json(
+                               "state", "begin",
+                               "err_code", 0,
+                               "mgs", "")).toJson(QJsonDocument::Compact).toStdString());
+
+        auto cfg = reinterpret_cast<dst::streamJson*>(aInput.get())->getData();
+        QString dir = m_root + "/" + cfg->value("data_root").toString();
+        QDir().mkdir(dir);
+        dir += "/predictions";
+        QDir().mkdir(dir);
+
+        int pred_idx = 0;
+        for (auto i : m_anno_list){
+            QFile fl(m_root + "/imageInfo/" + i);
+            if (fl.open(QFile::ReadOnly)){
+                auto img = QJsonDocument::fromJson(fl.readAll()).object();
+                auto shps = img.value("shapes").toObject();
+                QJsonArray ret_shps;
+                QJsonArray ori_shps;
+                int idx = 0;
+                for (auto j : shps){
+                    ori_shps.push_back(j);
+                    auto shp = j.toObject();
+                    shp.insert("origin_shape_index", idx++);
+                    shp.insert("score", 1.0);
+                    shp.insert("label", m_result_list[pred_idx++]);
+                    ret_shps.push_back(shp);
+                }
+                img.insert("shapes", shps);
+                img.insert("predict_shapes", ret_shps);
+
+                QFile fl2(dir + "/" + i);
+                if (fl2.open(QFile::WriteOnly)){
+                    fl2.write(QJsonDocument(img).toJson());
+                    fl2.close();
+                }
+                fl.close();
+            }
+        }
+
+        m_job_state = "upload_finish";
         return aInput;
     });
 }

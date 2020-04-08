@@ -62,8 +62,8 @@ void TestServer::TryResponseClient(const QJsonObject& aRequest)
         dst::streamManager::instance()->emitSignal(aRequest.value("type").toString(), STMJSON(aRequest));
         return;
     }else if (aRequest.value("type") == "inference"){
-        m_project_id = aRequest.value("project_id").toString();
-        m_task_id = aRequest.value("task_id").toString();
+       // m_project_id = aRequest.value("project_id").toString();
+        //m_task_id = aRequest.value("task_id").toString();
         response.insert("job_id", aRequest.value("id"));
         response.insert("state", "begin");
         response.insert("err_code", 0);
