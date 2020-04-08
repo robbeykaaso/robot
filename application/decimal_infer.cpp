@@ -417,7 +417,9 @@ void trainingServer::initialize(){
             "err_code", 0,
             "mgs", "")).toJson(QJsonDocument::Compact).toStdString());
 
-        auto lst = cfg->value("data").toObject().value("uuid_list").toArray();
+        auto dt = cfg->value("data").toObject();
+        m_root = dt.value("s3_bucket_name").toString();
+        auto lst = dt.value("uuid_list").toArray();
         m_anno_list.clear();
         m_result_list.clear();
         for (auto i : lst)
