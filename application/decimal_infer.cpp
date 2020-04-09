@@ -400,6 +400,15 @@ int recognizeNumber(const cv::Mat& aROI){
 
 void trainingServer::initialize(){
 
+    dst::streamManager::instance()->registerEvent("updateProgressDisplay", "mdysev", [this](std::shared_ptr<dst::streamData> aInput){
+        auto cfg = reinterpret_cast<dst::streamJson*>(aInput.get())->getData();
+        cfg->insert("type", "task_progress_push");
+        cfg->insert("project_id", m_project_id);
+        cfg->insert("task_id", m_task_id);
+        cfg->insert("progress", cfg->value("ratio").toDouble() * 100);
+        cfg->insert("progress_msg", "");
+        return aInput;}, "", "", 1)->next("sendToClient", "mdysev");
+
     dst::streamManager::instance()->registerEvent("inference", "mdysev", [this](std::shared_ptr<dst::streamData> aInput){
         auto cfg = reinterpret_cast<dst::streamJson*>(aInput.get())->getData();
         if (m_job_state != ""  && m_job_state != "upload_finish"){
@@ -482,9 +491,9 @@ void trainingServer::initialize(){
 
         int sz = fillData(train_labels, test_labels, train_images, test_images);
 
-        /*tiny_dnn::adagrad optimizer;
+        tiny_dnn::adagrad optimizer;
         std::cout << "start training" << std::endl;
-        tiny_dnn::progress_display disp(train_images.size());
+        dst::progress_display disp(train_images.size());
         tiny_dnn::timer t;
         optimizer.alpha *=
             std::min(tiny_dnn::float_t(4),
@@ -510,7 +519,17 @@ void trainingServer::initialize(){
 
         auto ret = nn.test(test_images, test_labels);
         ret.print_detail(std::cout);
-        nn.save("Gem-LeNet-model");*/
+        nn.save("Gem-LeNet-model");
+
+        /*QJsonObject log_test;
+    log_test.insert("type", "task_log");
+    log_test.insert("project_id", m_project_id);
+    log_test.insert("task_id", m_task_id);
+    log_test.insert("log_level", "info");
+    log_test.insert("log_msg", "train tick: " + QString::number(m_train_ticks));
+    doc.setObject(log_test);
+    QString strJson(doc.toJson(QJsonDocument::Compact));
+    Send(strJson.toStdString());*/
 
         QString mdl_dir = "models";
         QDir().mkdir(mdl_dir);
