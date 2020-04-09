@@ -4,8 +4,14 @@
 
 TestServer::TestServer(QObject *parent) : QObject(parent)
 {
-    auto tmp = socket_.listen(QHostAddress::LocalHost, 8082);
+    socket_.listen(QHostAddress::LocalHost, 8082);
     connect(&socket_,SIGNAL(newConnection()),this,SLOT(NewConnect()));
+
+    dst::streamManager::instance()->registerEvent("sendToClient", "mdysev", [this](std::shared_ptr<dst::streamData> aInput){
+        auto cfg = reinterpret_cast<dst::streamJson*>(aInput.get())->getData();
+        Send(QString::fromUtf8(QJsonDocument(*cfg).toJson(QJsonDocument::Compact)).toStdString());
+        return aInput;
+    });
 }
 
 void TestServer::NewConnect()

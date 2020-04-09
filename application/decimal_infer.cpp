@@ -403,25 +403,25 @@ void trainingServer::initialize(){
     dst::streamManager::instance()->registerEvent("inference", "mdysev", [this](std::shared_ptr<dst::streamData> aInput){
         auto cfg = reinterpret_cast<dst::streamJson*>(aInput.get())->getData();
         if (m_job_state != ""  && m_job_state != "upload_finish"){
-            Send(QJsonDocument(dst::Json(
-                                   "id", cfg->value("id"),
-                                   "type", cfg->value("type"),
-                                   "state", "begin",
-                                   "err_code", 1,
-                                   "mgs", "")).toJson(QJsonDocument::Compact).toStdString());
+            TRIG("sendToClient", STMJSON(dst::Json(
+                                               "id", cfg->value("id"),
+                                               "type", cfg->value("type"),
+                                               "state", "begin",
+                                               "err_code", 1,
+                                               "mgs", "")));
             return aInput;
         }
 
         m_project_id = cfg->value("project_id").toString();
         m_task_id = cfg->value("task_id").toString();
         m_job_state = "running";
-        Send(QJsonDocument(dst::Json(
+        TRIG("sendToClient", STMJSON(dst::Json(
                                "id", cfg->value("id"),
                                "type", cfg->value("type"),
                                "job_id", cfg->value("id"),
                                "state", "begin",
                                "err_code", 0,
-                               "mgs", "")).toJson(QJsonDocument::Compact).toStdString());
+                               "mgs", "")));
 
         auto dt = cfg->value("data").toObject();
         m_root = dt.value("s3_bucket_name").toString();
@@ -447,25 +447,25 @@ void trainingServer::initialize(){
     dst::streamManager::instance()->registerEvent("training", "mdysev", [this](std::shared_ptr<dst::streamData> aInput){
         auto cfg = reinterpret_cast<dst::streamJson*>(aInput.get())->getData();
         if (m_job_state != "" && m_job_state != "upload_finish"){
-            Send(QJsonDocument(dst::Json(
+            TRIG("sendToClient", STMJSON(dst::Json(
                                    "id", cfg->value("id"),
                                    "type", cfg->value("type"),
                                    "state", "begin",
                                    "err_code", 1,
-                                   "mgs", "")).toJson(QJsonDocument::Compact).toStdString());
+                                   "mgs", "")));
             return aInput;
         }
 
         m_project_id = cfg->value("project_id").toString();
         m_task_id = cfg->value("task_id").toString();
         m_job_state = "running";
-        Send(QJsonDocument(dst::Json(
+        TRIG("sendToClient", STMJSON(dst::Json(
             "id", cfg->value("id"),
             "type", cfg->value("type"),
             "job_id", cfg->value("id"),
             "state", "begin",
             "err_code", 0,
-            "mgs", "")).toJson(QJsonDocument::Compact).toStdString());
+            "mgs", "")));
 
         auto dt = cfg->value("data").toObject();
         m_root = dt.value("s3_bucket_name").toString();
@@ -528,17 +528,17 @@ void trainingServer::initialize(){
 
     dst::streamManager::instance()->registerEvent("task_state", "mdysev", [this](std::shared_ptr<dst::streamData> aInput){
         auto cfg = reinterpret_cast<dst::streamJson*>(aInput.get())->getData();
-        Send(QJsonDocument(dst::Json(
+        TRIG("sendToClient", STMJSON(dst::Json(
                                "id", cfg->value("id"),
                                "type", cfg->value("type"),
-                               "state", m_job_state)).toJson(QJsonDocument::Compact).toStdString());
+                               "state", m_job_state)));
         return aInput;
     });
     dst::streamManager::instance()->registerEvent("upload", "mdysev", [this](std::shared_ptr<dst::streamData> aInput){
-        Send(QJsonDocument(dst::Json(
+        TRIG("sendToClient", STMJSON(dst::Json(
                                "state", "begin",
                                "err_code", 0,
-                               "mgs", "")).toJson(QJsonDocument::Compact).toStdString());
+                               "mgs", "")));
 
         auto cfg = reinterpret_cast<dst::streamJson*>(aInput.get())->getData();
         QString dir = m_root + "/" + cfg->value("data_root").toString();

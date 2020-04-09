@@ -115,6 +115,7 @@ public:
             i.clear();
         m_gem_count = 0;
         m_cards_count = 0;
+        TRIG("resetGame", STMJSON(QJsonObject()));
     }
     std::set<std::shared_ptr<card>> getCards(int aCost) {return m_cards[aCost];}
     void setGemCount(int aCount) { m_gem_count = aCount;}
@@ -232,8 +233,14 @@ public:
     firstSelectScene() : selectScene(){
         loadFeatureImage("firstSelect", m_button);
         loadFeaturePos("firstSelect", m_loc);
+        dst::streamManager::instance()->registerEvent("resetGame", "mdyfstscn", [this](std::shared_ptr<dst::streamData> aInput){
+            m_cards.clear();
+            return aInput;
+        });
     }
     double isCurrentScene(const cv::Mat& aScreen, const QImage& aOrigin) override{
+        if (m_cards.size() > 0)
+            return 0;
         auto ret = calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc);
         if (ret > 0)
             selectScene::isCurrentScene(aScreen, aOrigin);
@@ -358,7 +365,7 @@ public:
         return calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc, m_button);
     }
     void updateModel(std::shared_ptr<cardsModel> aCards) override{
-        aCards.reset();
+
     }
     QJsonObject calcOperation() override{
         return dst::Json("type", "click", "org", dst::JArray(m_opt_loc.x + m_opt_loc.width * 0.5, m_opt_loc.y + m_opt_loc.height * 0.5));
