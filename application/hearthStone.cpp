@@ -347,7 +347,7 @@ private:
     cv::Rect m_opt_loc;
 public:
     gameOverScene() : scene(){
-        loadFeaturePos("m_loc", m_loc);
+        loadFeaturePos("gameOver", m_loc);
         loadFeatureImage("gameOver", m_button);
         if (m_button.cols > 0 && m_button.rows > 0){
             cv::Mat feature(m_button.rows, m_button.cols, CV_8UC1, cv::Scalar(0, 0, 0));
@@ -358,7 +358,7 @@ public:
                     m_button(loc).clone().copyTo(feature(loc));
             }
             m_button = feature;
-           //cv::imshow("hello", m_button);
+            //cv::imshow("hello", m_button);
         }
     }
     double isCurrentScene(const cv::Mat& aScreen, const QImage& aOrigin) override{

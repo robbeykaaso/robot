@@ -483,13 +483,35 @@ void trainingServer::initialize(){
         m_result_list.clear();
         for (auto i : lst)
             m_anno_list.push_back(i.toString() + ".json");
+
+        TRIG("sendToClient", STMJSON(dst::Json(
+                                 "type", "task_log",
+                                 "project_id", m_project_id,
+                                 "task_id", m_task_id,
+                                 "log_level", "info",
+                                 "log_msg", "prepare network")));
+
         auto nn = prepareNetwork();
+
+        TRIG("sendToClient", STMJSON(dst::Json(
+                                 "type", "task_log",
+                                 "project_id", m_project_id,
+                                 "task_id", m_task_id,
+                                 "log_level", "info",
+                                 "log_msg", "prepare training data")));
 
         std::vector<tiny_dnn::label_t> train_labels, test_labels;
         std::vector<tiny_dnn::vec_t> train_images, test_images;
         prepareTrainData(train_labels, test_labels, train_images, test_images, m_root, m_anno_list);
 
         int sz = fillData(train_labels, test_labels, train_images, test_images);
+
+        TRIG("sendToClient", STMJSON(dst::Json(
+                                 "type", "task_log",
+                                 "project_id", m_project_id,
+                                 "task_id", m_task_id,
+                                 "log_level", "info",
+                                 "log_msg", "start training")));
 
         tiny_dnn::adagrad optimizer;
         std::cout << "start training" << std::endl;
@@ -517,8 +539,8 @@ void trainingServer::initialize(){
                                 on_enumerate_epoch);
         std::cout << "end training." << std::endl;
 
-        auto ret = nn.test(test_images, test_labels);
-        ret.print_detail(std::cout);
+        //auto ret = nn.test(test_images, test_labels);
+        //ret.print_detail(std::cout);
         nn.save("Gem-LeNet-model");
 
         /*QJsonObject log_test;
@@ -536,6 +558,13 @@ void trainingServer::initialize(){
         mdl_dir += "/" + cfg->value("id").toString();
         QDir().mkdir(mdl_dir);
         nn.save(mdl_dir.toStdString() + "/" + "Gem-LeNet-model");
+
+        TRIG("sendToClient", STMJSON(dst::Json(
+                                 "type", "task_log",
+                                 "project_id", m_project_id,
+                                 "task_id", m_task_id,
+                                 "log_level", "info",
+                                 "log_msg", "start testing")));
 
         std::vector<tiny_dnn::label_t> test_ret;
         for (int j = 0; j < sz; ++j)
@@ -558,6 +587,13 @@ void trainingServer::initialize(){
                                "state", "begin",
                                "err_code", 0,
                                "mgs", "")));
+
+        TRIG("sendToClient", STMJSON(dst::Json(
+                                 "type", "task_log",
+                                 "project_id", m_project_id,
+                                 "task_id", m_task_id,
+                                 "log_level", "info",
+                                 "log_msg", "upload result")));
 
         auto cfg = reinterpret_cast<dst::streamJson*>(aInput.get())->getData();
         QString dir = m_root + "/" + cfg->value("data_root").toString();
