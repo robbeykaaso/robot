@@ -110,7 +110,7 @@ public:
                     j->setIndex(idx - 1);
             }
     }
-    void reset(){
+    void resetModel(){
         for (auto i : m_cards)
             i.clear();
         m_gem_count = 0;
@@ -141,7 +141,7 @@ public:
         return calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc);
     }
     void updateModel(std::shared_ptr<cardsModel> aCards) override{
-        aCards.reset();
+        aCards->resetModel();
     }
     QJsonObject calcOperation() override{
         return dst::Json("type", "click", "org", dst::JArray(m_opt_loc.x + m_opt_loc.width * 0.5, m_opt_loc.y + m_opt_loc.height * 0.5));
@@ -229,10 +229,15 @@ private:
     cv::Mat m_button;
     cv::Rect m_loc;
     cv::Rect m_opt_loc;
+private:
+    cv::Rect m_set_loc;
+    cv::Rect m_giveup_loc;
 public:
     firstSelectScene() : selectScene(){
         loadFeatureImage("firstSelect", m_button);
         loadFeaturePos("firstSelect", m_loc);
+        loadFeaturePos("firstSelectSet", m_set_loc);
+        loadFeaturePos("giveup", m_giveup_loc);
         dst::streamManager::instance()->registerEvent("resetGame", "mdyfstscn", [this](std::shared_ptr<dst::streamData> aInput){
             m_cards.clear();
             return aInput;
@@ -251,6 +256,13 @@ public:
             aCards->addCard(i);
     }
     QJsonObject calcOperation() override{
+        TRIG("controlWorld", STMJSON(dst::Json("type", "click",
+                                               "org", dst::JArray(m_set_loc.x + m_set_loc.width * 0.5, m_set_loc.y + m_set_loc.height * 0.5))));
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+        TRIG("controlWorld", STMJSON(dst::Json("type", "click",
+                                               "org", dst::JArray(m_giveup_loc.x + m_giveup_loc.width * 0.5, m_giveup_loc.y + m_giveup_loc.height * 0.5))));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10000));
+        //return QJsonObject();
         return dst::Json("type", "click", "org", dst::JArray(m_opt_loc.x + m_opt_loc.width * 0.5, m_opt_loc.y + m_opt_loc.height * 0.5));
     }
 };
@@ -380,7 +392,7 @@ public:
         m_scenes.push_back(std::make_shared<firstSelectScene>());
         m_scenes.push_back(std::make_shared<myTurnScene>());
         m_scenes.push_back(std::make_shared<enemyTurnScene>());
-        m_scenes.push_back(std::make_shared<gameOverScene>());
+        //m_scenes.push_back(std::make_shared<gameOverScene>());
 
         dst::streamManager::instance()->registerEvent("commandTrainGem", "mdyHearthStone", [this](std::shared_ptr<dst::streamData> aInput){
             trainingServer::instance()->trainGemModel();
