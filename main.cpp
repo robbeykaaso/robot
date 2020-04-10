@@ -78,11 +78,37 @@ void testCVAlg(){
 }
 
 void testCVAlg2(){
-    auto img = cv::imread("F:/ttt/Hearthstone Screenshot 03-30-20 20.57.10.png");
+    /*tiny_dnn::network<tiny_dnn::sequential> nn;
+    nn << tiny_dnn::layers::conv(3, 1, 3, 1, 1, 1, tiny_dnn::padding::valid, true, 1, 1, 1, 1);
+    //nn.load("Gem-LeNet-model.json", tiny_dnn::content_type::weights_and_model, tiny_dnn::file_format::json);
+    nn.save("Gem-LeNet-model2.json", tiny_dnn::content_type::weights, tiny_dnn::file_format::json);
+    tiny_dnn::vec_t data;
+    data.push_back(1);
+    data.push_back(1);
+    data.push_back(1);
+    auto ret = nn.predict(data);
+    auto test = ret;*/
+    auto img = cv::imread("F:/ttt/Hearthstone Screenshot 03-30-20 21.41.19.png");
     cv::cvtColor(img, img, cv::COLOR_RGB2GRAY);
-    //cv::resize(img, img, cv::Size(384, 203));
-    //threshold(img, img, 45, 255, cv::THRESH_BINARY);
+    img = img(cv::Rect(470, 540, 950, 100));
+    cv::resize(img, img, cv::Size(512, 100));
+    //img = 255 - img;
+    auto bk = (cv::sum(img.colRange(511, 512)) + cv::sum(img.colRange(0, 1))) / 200.0;
+    img = abs(img - bk);
+    //cv::threshold(img, img, 160, 255, cv::THRESH_TRUNC);
     cv::imshow("hello", img);
+    //img = 255 - img;
+    cv::imwrite("test2.png", img);
+
+    normalize(img, img, 0, 1, cv::NORM_MINMAX);
+    std::vector<int> integration(512);
+    for (int i = 0; i < 512; ++i){
+        auto tmp = img.colRange(i, i + 1);
+        auto test = cv::sum(tmp);
+        integration[i] = test.val[0];
+    }
+
+    img = img;
     //cv::ellipse(img, cv::Point(100, 100), cv::Size(200, 150), 0, 0, 360, cv::Scalar(0, 0, 255), - 1, 8);
 }
 

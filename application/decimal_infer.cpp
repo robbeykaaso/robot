@@ -57,6 +57,34 @@ static const bool tbl[] = {
      << tanh();
 }
 
+void construct_split_net(tiny_dnn::network<tiny_dnn::sequential> &nn,
+                          tiny_dnn::core::backend_t backend_type) {
+    using fc = tiny_dnn::layers::fc;
+    using conv = tiny_dnn::layers::conv;
+    using max_pool = tiny_dnn::layers::max_pool;
+    using relu = tiny_dnn::activation::relu;
+    using padding = tiny_dnn::padding;
+    using softmax = tiny_dnn::softmax_layer;
+
+    nn << conv(512, 1, 4, 1, 1, 4, padding::same, true, 1, 1, 1, 1, backend_type) //C1, 1@512*1-in, 4@512*1-out
+       << relu()
+       << max_pool(512, 1, 4, 4, 4, false) //S2, 4@512*512-in, 4@128*128-out
+       << conv(128, 1, 4, 1, 4, 8, padding::same, true, 1, 1, 1, 1, backend_type) //C3, 4@128*1-in, 8@128*1-out
+       << relu()
+       << max_pool(128, 1, 8, 4, 4, false) //S4, 8@128*128-in, 8@64*64-out
+       << conv(64, 1, 4, 1, 8, 16, padding::same, true, 1, 1, 1, 1, backend_type) //C5, 8@64*1-in, 16@64*1-out
+       << relu()
+       << max_pool(64, 1, 16, 4, 4, false) //S6, 16@64*64-in, 16@16*16-out
+       << conv(16, 1, 4, 1, 16, 32, padding::same, true, 1, 1, 1, 1, backend_type) //C7, 16@16*1-in, 32@16*1-out
+       << relu()
+       << max_pool(16, 1, 32, 4, 4, false) //S8, 32@16*1-in, 32@4*1-out
+       << conv(4, 1, 4, 1, 32, 64, padding::same, true, 1, 1, 1, 1, backend_type) //C9, 32@4*1-in, 64@1*1-out
+       << relu()
+       << fc(64, 7, true, backend_type) //F10, 64-in, 8-out
+       << relu()
+       << softmax();
+}
+
 void train_lenet(const std::string &data_dir_path,
                         double learning_rate,
                         const int n_train_epochs,
@@ -232,11 +260,11 @@ void trainDetect2Model(){
 
 }
 
-tiny_dnn::network<tiny_dnn::sequential> trainingServer::prepareNetwork(const QString& aDirectory){
+tiny_dnn::network<tiny_dnn::sequential> trainingServer::prepareNetwork(const QString& aName, const QString& aDirectory){
     tiny_dnn::network<tiny_dnn::sequential> nn;
-    if (QDir().exists(aDirectory + "Gem-LeNet-model")){
+    if (QDir().exists(aDirectory + aName)){
         //nn.load("Gem-LeNet-model", tiny_dnn::content_type::weights_and_model, tiny_dnn::file_format::json);
-        nn.load(aDirectory.toStdString() + "Gem-LeNet-model");
+        nn.load(aDirectory.toStdString() + m_task_name.toStdString() + "-LeNet-model");
         std::cout << "load models..." << std::endl;
     }
     else
@@ -244,8 +272,44 @@ tiny_dnn::network<tiny_dnn::sequential> trainingServer::prepareNetwork(const QSt
     return nn;
 }
 
+tiny_dnn::vec_t trainingServer::prepareGemImage(cv::Mat& aROI){
+    tiny_dnn::vec_t ret(aROI.cols * aROI.rows);
+    cv::cvtColor(aROI, aROI, cv::COLOR_RGB2GRAY);
+    cv::resize(aROI, aROI, cv::Size(32, 32));
+    /*cv::namedWindow("hello",0);
+    cv::moveWindow("hello", 300, 0);
+    cv::imshow("hello", img);*/
+
+    for (int i = 0; i < aROI.rows; i++){
+        auto ptr = aROI.ptr(i);
+        for (int j = 0; j < aROI.cols; j++)
+            ret[i * aROI.cols + j] = (255 - ptr[j]) / float_t(255) * 2 - 1;
+    }
+    return ret;
+}
+
+tiny_dnn::vec_t trainingServer::prepareSplitImage(cv::Mat& aROI){
+    cv::cvtColor(aROI, aROI, cv::COLOR_RGB2GRAY);
+    cv::resize(aROI, aROI, cv::Size(512, 100));
+    auto bk = (cv::sum(aROI.colRange(511, 512)) + cv::sum(aROI.colRange(0, 1))) / 200.0;
+    aROI = abs(aROI - bk);
+    //cv::threshold(img, img, 160, 255, cv::THRESH_TRUNC);
+    //cv::imshow("hello", img);
+    //img = 255 - img;
+    //cv::imwrite("test2.png", img);
+    normalize(aROI, aROI, 0, 1, cv::NORM_MINMAX);
+    tiny_dnn::vec_t ret(512);
+    for (int i = 0; i < 512; ++i){
+        auto tmp = aROI.colRange(i, i + 1);
+        auto test = cv::sum(tmp);
+        ret[i] = (100 - test.val[0]) / float_t(100) * 2 - 1;
+    }
+    return ret;
+}
+
 void trainingServer::prepareTrainData(std::vector<tiny_dnn::label_t>& aTrainLabels, std::vector<tiny_dnn::label_t>& aTestLabels,
-    std::vector<tiny_dnn::vec_t>& aTrainImages, std::vector<tiny_dnn::vec_t>& aTestImages, const QString& aRootDirectory, const QStringList& aList){
+    std::vector<tiny_dnn::vec_t>& aTrainImages, std::vector<tiny_dnn::vec_t>& aTestImages, const QString& aRootDirectory,
+    const QStringList& aList, const QString& aModelName){
     for (auto i : aList)
         if (i != "." && i != ".."){
             QFile fl(aRootDirectory + "/imageInfo/" + i);
@@ -260,17 +324,11 @@ void trainingServer::prepareTrainData(std::vector<tiny_dnn::label_t>& aTrainLabe
                     auto pts = shp.value("points").toArray();
                     auto rect = cv::Rect(pts[0].toInt(), pts[1].toInt(), pts[2].toInt() - pts[0].toInt(), pts[3].toInt() - pts[1].toInt());
                     cv::Mat img = bak(rect);
-                    cv::cvtColor(img, img, cv::COLOR_RGB2GRAY);
-                    cv::resize(img, img, cv::Size(32, 32));
-                    /*cv::namedWindow("hello",0);
-                    cv::moveWindow("hello", 300, 0);
-                    cv::imshow("hello", img);*/
-                    tiny_dnn::vec_t ret(img.cols * img.rows);
-                    for (int i = 0; i < img.rows; i++){
-                        auto ptr = img.ptr(i);
-                        for (int j = 0; j < img.cols; j++)
-                            ret[i * img.cols + j] = (255 - ptr[j]) / float_t(255) * 2 - 1;
-                    }
+                    tiny_dnn::vec_t ret;
+                    if (aModelName == "Gem")
+                        ret = prepareGemImage(img);
+                    else
+                        ret = prepareSplitImage(img);
                     aTrainImages.push_back(ret);
                     aTestImages.push_back(ret);
                     aTrainLabels.push_back(shp.value("label").toString().toInt());
@@ -286,7 +344,7 @@ void trainingServer::prepareGemTrainData(std::vector<tiny_dnn::label_t>& aTrainL
 
     QString rel_dir = "config_/hearthStone/imageInfo";
     QDir dir(rel_dir);
-    prepareTrainData(aTrainLabels, aTestLabels, aTrainImages, aTestImages, "config_/hearthStone", dir.entryList());
+    prepareTrainData(aTrainLabels, aTestLabels, aTrainImages, aTestImages, "config_/hearthStone", dir.entryList(), "Gem");
     fillData(aTrainLabels, aTestLabels, aTrainImages, aTestImages);
 }
 
@@ -307,8 +365,12 @@ int trainingServer::fillData(std::vector<tiny_dnn::label_t>& aTrainLabels, std::
     return sz;
 }
 
+void trainingServer::trainSplitModel(){
+    auto nn = prepareNetwork("Split-LeNet-model");
+}
+
 void trainingServer::trainGemModel(){
-  auto nn = prepareNetwork();
+  auto nn = prepareNetwork("Gem-LeNet-model");
 
   std::vector<tiny_dnn::label_t> train_labels, test_labels;
   std::vector<tiny_dnn::vec_t> train_images, test_images;
@@ -380,10 +442,10 @@ void convert_image(const cv::Mat& aImage,
         [=](uint8_t c) { return (255 - c) * (maxv - minv) / 255.0 + minv; });
 }
 
-int recognizeNumber(tiny_dnn::network<tiny_dnn::sequential>& aNetwork, const tiny_dnn::vec_t& aROI){
+int trainingServer::recognizeNumber(tiny_dnn::network<tiny_dnn::sequential>& aNetwork, const tiny_dnn::vec_t& aROI){
     auto res = aNetwork.predict(aROI);
     std::vector<std::pair<double, int>> scores;
-    for (int i = 0; i < 11; i++)
+    for (int i = 0; i < res.size(); i++)
         scores.emplace_back(rescale<tiny_dnn::tanh_layer>(res[i]), i);
     sort(scores.begin(), scores.end(), std::greater<std::pair<double, int>>());
     return scores[0].second;
@@ -395,7 +457,41 @@ int recognizeNumber(const cv::Mat& aROI){
     nn.load("Gem-LeNet-model");
     tiny_dnn::vec_t data;
     convert_image(aROI, -1.0, 1.0, 32, 32, data);
-    return recognizeNumber(nn, data);
+    return trainingServer::instance()->recognizeNumber(nn, data);
+}
+
+bool trainingServer::tryPrepareJob(const QJsonObject& aRequest){
+    if (m_job_state != ""  && m_job_state != "upload_finish"){
+        TRIG("sendToClient", STMJSON(dst::Json(
+                                           "id", aRequest.value("id"),
+                                           "type", aRequest.value("type"),
+                                           "state", "begin",
+                                 "err_code", 1,
+                                 "mgs", "")));
+        return false;
+    }
+
+    m_project_id = aRequest.value("project_id").toString();
+    m_task_id = aRequest.value("task_id").toString();
+    m_task_name = aRequest.value("task_name").toString();
+    m_job_state = "running";
+
+    TRIG("sendToClient", STMJSON(dst::Json(
+                             "id", aRequest.value("id"),
+                             "type", aRequest.value("type"),
+                             "job_id", aRequest.value("id"),
+                             "state", "begin",
+                             "err_code", 0,
+                             "mgs", "")));
+
+    auto dt = aRequest.value("data").toObject();
+    m_root = dt.value("s3_bucket_name").toString();
+    auto lst = dt.value("uuid_list").toArray();
+    m_anno_list.clear();
+    m_result_list.clear();
+    for (auto i : lst)
+        m_anno_list.push_back(i.toString() + ".json");
+    return true;
 }
 
 void trainingServer::initialize(){
@@ -411,39 +507,15 @@ void trainingServer::initialize(){
 
     dst::streamManager::instance()->registerEvent("inference", "mdysev", [this](std::shared_ptr<dst::streamData> aInput){
         auto cfg = reinterpret_cast<dst::streamJson*>(aInput.get())->getData();
-        if (m_job_state != ""  && m_job_state != "upload_finish"){
-            TRIG("sendToClient", STMJSON(dst::Json(
-                                               "id", cfg->value("id"),
-                                               "type", cfg->value("type"),
-                                               "state", "begin",
-                                               "err_code", 1,
-                                               "mgs", "")));
+
+        if (!tryPrepareJob(*cfg))
             return aInput;
-        }
 
-        m_project_id = cfg->value("project_id").toString();
-        m_task_id = cfg->value("task_id").toString();
-        m_job_state = "running";
-        TRIG("sendToClient", STMJSON(dst::Json(
-                               "id", cfg->value("id"),
-                               "type", cfg->value("type"),
-                               "job_id", cfg->value("id"),
-                               "state", "begin",
-                               "err_code", 0,
-                               "mgs", "")));
-
-        auto dt = cfg->value("data").toObject();
-        m_root = dt.value("s3_bucket_name").toString();
-        auto lst = dt.value("uuid_list").toArray();
-        m_anno_list.clear();
-        m_result_list.clear();
-        for (auto i : lst)
-            m_anno_list.push_back(i.toString() + ".json");
-        auto nn = prepareNetwork("models/" + cfg->value("model_id").toString() + "/");
+        auto nn = prepareNetwork(m_task_name + "-LeNet-model", "models/" + cfg->value("model_id").toString() + "/");
 
         std::vector<tiny_dnn::label_t> train_labels, test_labels;
         std::vector<tiny_dnn::vec_t> train_images, test_images;
-        prepareTrainData(train_labels, test_labels, train_images, test_images, m_root, m_anno_list);
+        prepareTrainData(train_labels, test_labels, train_images, test_images, m_root, m_anno_list, m_task_name);
 
         std::vector<tiny_dnn::label_t> test_ret;
         for (int j = 0; j < test_images.size(); ++j)
@@ -453,36 +525,11 @@ void trainingServer::initialize(){
         return aInput;
     }, "", "", 1);
 
+    //params, network, model_type
     dst::streamManager::instance()->registerEvent("training", "mdysev", [this](std::shared_ptr<dst::streamData> aInput){
         auto cfg = reinterpret_cast<dst::streamJson*>(aInput.get())->getData();
-        if (m_job_state != "" && m_job_state != "upload_finish"){
-            TRIG("sendToClient", STMJSON(dst::Json(
-                                   "id", cfg->value("id"),
-                                   "type", cfg->value("type"),
-                                   "state", "begin",
-                                   "err_code", 1,
-                                   "mgs", "")));
+        if (!tryPrepareJob(*cfg))
             return aInput;
-        }
-
-        m_project_id = cfg->value("project_id").toString();
-        m_task_id = cfg->value("task_id").toString();
-        m_job_state = "running";
-        TRIG("sendToClient", STMJSON(dst::Json(
-            "id", cfg->value("id"),
-            "type", cfg->value("type"),
-            "job_id", cfg->value("id"),
-            "state", "begin",
-            "err_code", 0,
-            "mgs", "")));
-
-        auto dt = cfg->value("data").toObject();
-        m_root = dt.value("s3_bucket_name").toString();
-        auto lst = dt.value("uuid_list").toArray();
-        m_anno_list.clear();
-        m_result_list.clear();
-        for (auto i : lst)
-            m_anno_list.push_back(i.toString() + ".json");
 
         TRIG("sendToClient", STMJSON(dst::Json(
                                  "type", "task_log",
@@ -491,7 +538,7 @@ void trainingServer::initialize(){
                                  "log_level", "info",
                                  "log_msg", "prepare network")));
 
-        auto nn = prepareNetwork();
+        auto nn = prepareNetwork(m_task_name + "-LeNet-model");
 
         TRIG("sendToClient", STMJSON(dst::Json(
                                  "type", "task_log",
@@ -502,7 +549,7 @@ void trainingServer::initialize(){
 
         std::vector<tiny_dnn::label_t> train_labels, test_labels;
         std::vector<tiny_dnn::vec_t> train_images, test_images;
-        prepareTrainData(train_labels, test_labels, train_images, test_images, m_root, m_anno_list);
+        prepareTrainData(train_labels, test_labels, train_images, test_images, m_root, m_anno_list, m_task_name);
 
         int sz = fillData(train_labels, test_labels, train_images, test_images);
 
@@ -541,7 +588,7 @@ void trainingServer::initialize(){
 
         //auto ret = nn.test(test_images, test_labels);
         //ret.print_detail(std::cout);
-        nn.save("Gem-LeNet-model");
+        nn.save(m_task_name.toStdString() + "-LeNet-model");
 
         /*QJsonObject log_test;
     log_test.insert("type", "task_log");
@@ -557,7 +604,7 @@ void trainingServer::initialize(){
         QDir().mkdir(mdl_dir);
         mdl_dir += "/" + cfg->value("id").toString();
         QDir().mkdir(mdl_dir);
-        nn.save(mdl_dir.toStdString() + "/" + "Gem-LeNet-model");
+        nn.save(mdl_dir.toStdString() + "/" + m_task_name.toStdString() + "-LeNet-model");
 
         TRIG("sendToClient", STMJSON(dst::Json(
                                  "type", "task_log",
