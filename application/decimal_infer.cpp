@@ -273,7 +273,7 @@ tiny_dnn::network<tiny_dnn::sequential> trainingServer::prepareNetwork(const QSt
 }
 
 tiny_dnn::vec_t trainingServer::prepareGemImage(cv::Mat& aROI){
-    tiny_dnn::vec_t ret(aROI.cols * aROI.rows);
+    tiny_dnn::vec_t ret(32 * 32);
     cv::cvtColor(aROI, aROI, cv::COLOR_RGB2GRAY);
     cv::resize(aROI, aROI, cv::Size(32, 32));
     /*cv::namedWindow("hello",0);
