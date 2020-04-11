@@ -77,6 +77,13 @@ protected:
         //cv::rectangle(src, minLocation, cv::Point(minLocation.x + m_ready_button.cols, minLocation.y + m_ready_button.rows), cv::Scalar(0,255,0), 2, 8);
         //cv::imshow("匹配后的图像", src);
     }
+    virtual QString savePredictResult(const QString& aDirectory, const QImage& aImage){
+        auto id = dst::configObject::generateObjectID();
+        QDir().mkdir("config_/" + aDirectory);
+        QDir().mkdir("config_/" + aDirectory + "/" + id);
+        aImage.save("config_/" + aDirectory + "/" + id + "/0.png");
+        return id;
+    }
     bool m_valid = false;
 };
 
@@ -166,7 +173,7 @@ private:
             if (!m_tick++){
            //     cv::imshow("匹配后的图像", roi2);
             }
-            aNumber = recognizeNumber(roi2);
+            aNumber = trainingServer::instance()->recognizeNumber(roi2);
             return aNumber >= 0;
         }else
             return false;
@@ -201,14 +208,23 @@ public:
             m_cards.push_back(std::make_shared<card>(4, 0));
         //cv::imwrite("config_/src.png", aScreen);
 
-        auto id = dst::configObject::generateObjectID();
-        QDir().mkdir("config_/image");
-        QDir().mkdir("config_/image/" + id);
-        aOrigin.save("config_/image/" + id + "/0.png");
+        savePredictResult("firstSelect", aOrigin);
+
+        return 1;
+    }
+protected:
+    QString savePredictResult(const QString& aDirectory, const QImage& aImage) override{
+        auto ret = scene::savePredictResult(aDirectory, aImage);
         QJsonObject cfg;
-        cfg.insert("id", id);
-        cfg.insert("images", dst::JArray(id + "/0.png"));
+        cfg.insert("id", ret);
+        cfg.insert("images", dst::JArray(ret + "/0.png"));
         QJsonObject shps;
+        auto sum = m_cards.size();
+        cv::Rect* tgt = m_loc_3;
+        if (sum > 4){
+            sum--;
+            tgt = m_loc_4;
+        }
         for (int i = 0; i < sum; ++i){
             shps.insert(dst::configObject::generateObjectID(),
                         dst::Json("label", QString::number(m_cards.at(i)->getCost()),
@@ -217,13 +233,12 @@ public:
         }
         cfg.insert("shapes", shps);
 
-        QFile fl("config_/image/" + id + ".json");
+        QFile fl("config_/" + aDirectory + "/" + ret + ".json");
         if (fl.open(QFile::WriteOnly)){
             fl.write(QJsonDocument(cfg).toJson());
             fl.close();
         }
-
-        return 1;
+        return ret;
     }
 };
 
@@ -304,6 +319,7 @@ private:
         }
     }
     cv::Mat m_screen;
+    QImage m_origin;
 public:
     myTurnScene() : scene(){
         loadFeatureImage("myTurn", m_button);
@@ -312,8 +328,10 @@ public:
     }
     double isCurrentScene(const cv::Mat &aScreen, const QImage& aOrigin) override{
         auto ret = calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc);
-        if (ret == 1.0)
+        if (ret == 1.0){
             m_screen = aScreen;
+            m_origin = aOrigin;
+        }
         return ret;
     }
     void updateModel(std::shared_ptr<cardsModel> aCards) override{
@@ -326,8 +344,25 @@ public:
         if (card_count < 10){
             auto pos = m_cards_model->getCardPos(card_count);
             auto roi = m_screen(pos);
-            auto cost = recognizeNumber(roi);
+            auto cost = trainingServer::instance()->recognizeNumber(roi);
             m_cards_model->supplyCard(std::make_shared<card>(card_count, cost));
+
+            auto id = savePredictResult("supplyCard", m_origin);
+            QJsonObject cfg;
+            cfg.insert("id", id);
+            cfg.insert("images", dst::JArray(id + "/0.png"));
+            QJsonObject shps;
+            shps.insert(dst::configObject::generateObjectID(),
+                        dst::Json("label", QString::number(cost),
+                                  "type", "rectangle",
+                                  "points", dst::JArray(pos.x, pos.y, pos.x + pos.width, pos.y + pos.height)));
+            cfg.insert("shapes", shps);
+
+            QFile fl("config_/supplyCard/" + id + ".json");
+            if (fl.open(QFile::WriteOnly)){
+                fl.write(QJsonDocument(cfg).toJson());
+                fl.close();
+            }
         }
         aCards->setGemCount(std::min(10, aCards->getGemCount() + 1));
     }

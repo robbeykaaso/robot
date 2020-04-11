@@ -5,7 +5,6 @@
 #include "testserver.h"
 #include "tiny_dnn/tiny_dnn.h"
 
-int recognizeNumber(const cv::Mat& aROI);
 void dnnTest();
 
 class trainingServer : public TestServer{
@@ -14,6 +13,7 @@ public:
     void trainGemModel();
     void trainSplitModel();
     int recognizeNumber(tiny_dnn::network<tiny_dnn::sequential>& aNetwork, const tiny_dnn::vec_t& aROI);
+    int recognizeNumber(const cv::Mat& aROI);
 protected:
     void initialize();
 private:
@@ -40,6 +40,9 @@ private:
     QString m_job_state = "";
     QStringList m_anno_list;
     QStringList m_result_list;
+private:
+    tiny_dnn::network<tiny_dnn::sequential> m_gem_net;
+    bool m_gem_net_loaded;
 };
 
 #endif

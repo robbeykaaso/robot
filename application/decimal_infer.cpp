@@ -453,13 +453,15 @@ int trainingServer::recognizeNumber(tiny_dnn::network<tiny_dnn::sequential>& aNe
     return scores[0].second;
 }
 
-int recognizeNumber(const cv::Mat& aROI){
-    tiny_dnn::network<tiny_dnn::sequential> nn;
+int trainingServer::recognizeNumber(const cv::Mat& aROI){
     //nn.load("Gem-LeNet-model", tiny_dnn::content_type::weights_and_model, tiny_dnn::file_format::json);
-    nn.load("Gem-LeNet-model");
+    if (!m_gem_net_loaded){
+        m_gem_net.load("Gem-LeNet-model");
+        m_gem_net_loaded = true;
+    }
     tiny_dnn::vec_t data;
     convert_image(aROI, -1.0, 1.0, 32, 32, data);
-    return trainingServer::instance()->recognizeNumber(nn, data);
+    return trainingServer::instance()->recognizeNumber(m_gem_net, data);
 }
 
 bool trainingServer::tryPrepareJob(const QJsonObject& aRequest){
