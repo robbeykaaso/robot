@@ -266,20 +266,21 @@ tiny_dnn::network<tiny_dnn::sequential> trainingServer::prepareNetwork(const QSt
         //nn.load("Gem-LeNet-model", tiny_dnn::content_type::weights_and_model, tiny_dnn::file_format::json);
         nn.load(aDirectory.toStdString() + m_task_name.toStdString() + "-LeNet-model");
         std::cout << "load models..." << std::endl;
-    }
-    else
+    }else if (aName == "Gem")
         construct_net(nn, m_backend_type);
+    else
+        construct_split_net(nn, m_backend_type);
     return nn;
 }
 
 tiny_dnn::vec_t trainingServer::prepareGemImage(cv::Mat& aROI){
-    tiny_dnn::vec_t ret(32 * 32);
     cv::cvtColor(aROI, aROI, cv::COLOR_RGB2GRAY);
     cv::resize(aROI, aROI, cv::Size(32, 32));
     /*cv::namedWindow("hello",0);
     cv::moveWindow("hello", 300, 0);
     cv::imshow("hello", img);*/
 
+    tiny_dnn::vec_t ret(32 * 32);
     for (int i = 0; i < aROI.rows; i++){
         auto ptr = aROI.ptr(i);
         for (int j = 0; j < aROI.cols; j++)

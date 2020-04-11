@@ -101,12 +101,13 @@ public:
             return;
         addCard(aCard);
     }
-    void placeCard(int aIndex) {
+    void placeCard(std::shared_ptr<card> aCard) {
+        getCards(aCard->getCost()).erase(aCard);
         --m_cards_count;
         for (int i = 0; i < 10; ++i)
             for (auto j : m_cards[i]){
                 auto idx = j->getIndex();
-                if (idx > aIndex)
+                if (idx > aCard->getIndex())
                     j->setIndex(idx - 1);
             }
     }
@@ -196,6 +197,8 @@ public:
             isValidGem(tgt[i], aScreen, cost);
             m_cards.push_back(std::make_shared<card>(i, cost));
         }
+        if (sum == 4)
+            m_cards.push_back(std::make_shared<card>(4, 0));
         //cv::imwrite("config_/src.png", aScreen);
 
         auto id = dst::configObject::generateObjectID();
@@ -256,12 +259,12 @@ public:
             aCards->addCard(i);
     }
     QJsonObject calcOperation() override{
-        TRIG("controlWorld", STMJSON(dst::Json("type", "click",
+        /*TRIG("controlWorld", STMJSON(dst::Json("type", "click",
                                                "org", dst::JArray(m_set_loc.x + m_set_loc.width * 0.5, m_set_loc.y + m_set_loc.height * 0.5))));
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
         TRIG("controlWorld", STMJSON(dst::Json("type", "click",
                                                "org", dst::JArray(m_giveup_loc.x + m_giveup_loc.width * 0.5, m_giveup_loc.y + m_giveup_loc.height * 0.5))));
-        std::this_thread::sleep_for(std::chrono::milliseconds(10000));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10000));*/
         //return QJsonObject();
         return dst::Json("type", "click", "org", dst::JArray(m_opt_loc.x + m_opt_loc.width * 0.5, m_opt_loc.y + m_opt_loc.height * 0.5));
     }
@@ -273,7 +276,7 @@ private:
     cv::Rect m_loc;
     cv::Rect m_opt_loc;
     std::shared_ptr<cardsModel> m_cards_model;
-    cv::Point m_card_place;
+    cv::Rect m_card_place;
 private:
     void attackEnemy(){
 
@@ -286,16 +289,16 @@ private:
             auto cards = m_cards_model->getCards(i);
             if (cards.size() > 0){
                 auto card = *cards.begin();
-                cards.erase(cards.begin());
-                gem_count -= card->getCost();
-                i -= card->getCost();
+
                 auto st_pos = m_cards_model->getCardPos(card->getIndex());
                 auto st_x = st_pos.x + st_pos.width * 0.5, st_y = st_pos.y + st_pos.height * 0.5;
                 TRIG("controlWorld", STMJSON(dst::Json("type", "drag",
                                                        "org", dst::JArray(st_x, st_y),
-                                                       "del", dst::JArray(m_card_place.x - st_x, m_card_place.y - st_y))));
-                m_cards_model->placeCard(card->getIndex());
-                continue;
+                                                       "del", dst::JArray(m_card_place.x + m_card_place.width * 0.5 - st_x, m_card_place.y + m_card_place.height * 0.5 - st_y))));
+                m_cards_model->placeCard(card);
+                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                gem_count -= card->getCost();
+                i -= card->getCost();
             }else
                 --i;
         }
@@ -305,6 +308,7 @@ public:
     myTurnScene() : scene(){
         loadFeatureImage("myTurn", m_button);
         loadFeaturePos("myTurn", m_loc);
+        loadFeaturePos("cardPlace", m_card_place);
     }
     double isCurrentScene(const cv::Mat &aScreen, const QImage& aOrigin) override{
         auto ret = calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc);
@@ -316,17 +320,20 @@ public:
         m_cards_model = aCards;
 
         int card_count = m_cards_model->getCardsCount();
-        return;
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(2000)); //wait for new supplied card
+
         if (card_count < 10){
             auto pos = m_cards_model->getCardPos(card_count);
             auto roi = m_screen(pos);
             auto cost = recognizeNumber(roi);
             m_cards_model->supplyCard(std::make_shared<card>(card_count, cost));
         }
+        aCards->setGemCount(std::min(10, aCards->getGemCount() + 1));
     }
     QJsonObject calcOperation() override{
         //attackEnemy();
-        //placeCards();
+        placeCards();
         return dst::Json("type", "click", "org", dst::JArray(m_opt_loc.x + m_opt_loc.width * 0.5, m_opt_loc.y + m_opt_loc.height * 0.5));
     }
 };
