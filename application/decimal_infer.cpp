@@ -443,7 +443,7 @@ void convert_image(const cv::Mat& aImage,
         [=](uint8_t c) { return (255 - c) * (maxv - minv) / 255.0 + minv; });
 }
 
-int trainingServer::recognizeNumber(tiny_dnn::network<tiny_dnn::sequential>& aNetwork, const tiny_dnn::vec_t& aROI){
+int trainingServer::predict(tiny_dnn::network<tiny_dnn::sequential>& aNetwork, const tiny_dnn::vec_t& aROI){
     auto res = aNetwork.predict(aROI);
     std::vector<std::pair<double, int>> scores;
     for (int i = 0; i < res.size(); i++)
@@ -461,7 +461,17 @@ int trainingServer::recognizeNumber(const cv::Mat& aROI){
     }
     tiny_dnn::vec_t data;
     convert_image(aROI, -1.0, 1.0, 32, 32, data);
-    return trainingServer::instance()->recognizeNumber(m_gem_net, data);
+    return predict(m_gem_net, data);
+}
+
+int trainingServer::recognizeCount(const cv::Mat& aROI){
+    if (!m_split_net_loaded){
+        m_split_net.load("Split-LeNet-model");
+        m_split_net_loaded = true;
+    }
+    auto roi = aROI;
+    tiny_dnn::vec_t data = prepareSplitImage(roi);
+    return predict(m_split_net, data);
 }
 
 bool trainingServer::tryPrepareJob(const QJsonObject& aRequest){
@@ -523,7 +533,7 @@ void trainingServer::initialize(){
 
         std::vector<tiny_dnn::label_t> test_ret;
         for (int j = 0; j < test_images.size(); ++j)
-            m_result_list.push_back(QString::number(recognizeNumber(nn, test_images.at(j))));
+            m_result_list.push_back(QString::number(predict(nn, test_images.at(j))));
         m_job_state = "process_finish";
 
         return aInput;
@@ -619,7 +629,7 @@ void trainingServer::initialize(){
 
         std::vector<tiny_dnn::label_t> test_ret;
         for (int j = 0; j < sz; ++j)
-            m_result_list.push_back(QString::number(recognizeNumber(nn, test_images.at(j))));
+            m_result_list.push_back(QString::number(predict(nn, test_images.at(j))));
         m_job_state = "process_finish";
 
         return aInput;

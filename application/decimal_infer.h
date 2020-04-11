@@ -12,8 +12,9 @@ public:
     SINGLENTON(trainingServer)
     void trainGemModel();
     void trainSplitModel();
-    int recognizeNumber(tiny_dnn::network<tiny_dnn::sequential>& aNetwork, const tiny_dnn::vec_t& aROI);
+    int predict(tiny_dnn::network<tiny_dnn::sequential>& aNetwork, const tiny_dnn::vec_t& aROI);
     int recognizeNumber(const cv::Mat& aROI);
+    int recognizeCount(const cv::Mat& aROI);
 protected:
     void initialize();
 private:
@@ -43,6 +44,8 @@ private:
 private:
     tiny_dnn::network<tiny_dnn::sequential> m_gem_net;
     bool m_gem_net_loaded;
+    tiny_dnn::network<tiny_dnn::sequential> m_split_net;
+    bool m_split_net_loaded;
 };
 
 #endif
