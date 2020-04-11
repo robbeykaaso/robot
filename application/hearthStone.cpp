@@ -285,7 +285,50 @@ public:
     }
 };
 
+class attendant{
+private:
+    int m_attack;
+    int m_health;
+};
+
 class myTurnScene : public scene{
+private:
+    cv::Mat m_screen;
+    QImage m_origin;
+private:
+    cv::Rect m_my_count_feature;
+    cv::Rect m_enemy_count_feature;
+    void attackEnemy(){
+        if (m_my_count_feature.width > 0 && m_enemy_count_feature.width > 0){
+            auto my_cnt = trainingServer::instance()->recognizeCount(m_screen(m_my_count_feature));
+            auto enemy_cnt = trainingServer::instance()->recognizeCount(m_screen(m_enemy_count_feature));
+
+            auto id = savePredictResult("attendentCount", m_origin);
+            QJsonObject cfg;
+            cfg.insert("id", id);
+            cfg.insert("images", dst::JArray(id + "/0.png"));
+            QJsonObject shps;
+            shps.insert(dst::configObject::generateObjectID(),
+                        dst::Json("label", QString::number(my_cnt),
+                                  "type", "rectangle",
+                                  "points", dst::JArray(m_my_count_feature.x, m_my_count_feature.y,
+                                                        m_my_count_feature.x + m_my_count_feature.width,
+                                                        m_my_count_feature.y + m_my_count_feature.height)));
+            shps.insert(dst::configObject::generateObjectID(),
+                        dst::Json("label", QString::number(enemy_cnt),
+                                  "type", "rectangle",
+                                  "points", dst::JArray(m_enemy_count_feature.x, m_enemy_count_feature.y,
+                                                        m_enemy_count_feature.x + m_enemy_count_feature.width,
+                                                        m_enemy_count_feature.y + m_enemy_count_feature.height)));
+            cfg.insert("shapes", shps);
+
+            QFile fl("config_/attendentCount/" + id + ".json");
+            if (fl.open(QFile::WriteOnly)){
+                fl.write(QJsonDocument(cfg).toJson());
+                fl.close();
+            }
+        }
+    }
 private:
     cv::Mat m_button;
     cv::Rect m_loc;
@@ -293,9 +336,6 @@ private:
     std::shared_ptr<cardsModel> m_cards_model;
     cv::Rect m_card_place;
 private:
-    void attackEnemy(){
-
-    }
     void placeCards(){
         int gem_count = m_cards_model->getGemCount();
 
@@ -318,13 +358,14 @@ private:
                 --i;
         }
     }
-    cv::Mat m_screen;
-    QImage m_origin;
 public:
     myTurnScene() : scene(){
         loadFeatureImage("myTurn", m_button);
         loadFeaturePos("myTurn", m_loc);
         loadFeaturePos("cardPlace", m_card_place);
+
+        loadFeaturePos("myCountFeature", m_my_count_feature);
+        loadFeaturePos("enemyCountFeature", m_enemy_count_feature);
     }
     double isCurrentScene(const cv::Mat &aScreen, const QImage& aOrigin) override{
         auto ret = calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc);
