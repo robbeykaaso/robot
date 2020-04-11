@@ -13,6 +13,8 @@
 #include <iostream>
 #include <QJsonArray>
 
+#include "tiny_dnn/tiny_dnn.h"
+
 #include <opencv2/opencv.hpp>
 
 void testCVAlg(){
@@ -112,10 +114,39 @@ void testCVAlg2(){
     //cv::ellipse(img, cv::Point(100, 100), cv::Size(200, 150), 0, 0, 360, cv::Scalar(0, 0, 255), - 1, 8);
 }
 
+void testCVAlg3() {
+    tiny_dnn::network<tiny_dnn::sequential> nn;
+    using fc = tiny_dnn::layers::fc;
+    using conv = tiny_dnn::layers::conv;
+    using max_pool = tiny_dnn::layers::max_pool;
+    using relu = tiny_dnn::activation::relu;
+    using padding = tiny_dnn::padding;
+    using softmax = tiny_dnn::softmax_layer;
+
+    nn << conv(512, 1, 2, 1, 1, 2, padding::same, true, 1, 1, 1, 1) //C1, 1@512*1-in, 2@512*1-out
+       << relu()
+       << max_pool(512, 1, 2, 2, 2, false) //S2, 2@512*1-in, 2@256*1-out
+       << conv(256, 1, 4, 1, 2, 4, padding::same, true, 1, 1, 1, 1) //C3, 2@256*1-in, 4@256*1-out
+       << relu()
+       << max_pool(256, 1, 4, 4, 4, false) //S4, 4@256*1-in, 4@64*1-out
+       << conv(64, 1, 4, 1, 4, 8, padding::same, true, 1, 1, 1, 1) //C5, 4@64*1-in, 8@64*1-out
+       << relu()
+       << max_pool(64, 1, 8, 4, 4, false) //S6, 8@64*1-in, 8@16*1-out
+       << conv(16, 1, 8, 1, 8, 16, padding::same, true, 1, 1, 1, 1) //C7, 8@16*1-in, 16@16*1-out
+       << relu()
+       << max_pool(16, 1, 16, 4, 4, false)  //S8, 16@16*1-in, 16@4*1-in
+       << conv(4, 1, 4, 1, 16, 32, padding::valid, true, 1, 1, 1, 1) //C7, 16@4*1-in, 32@1*1-out
+       << relu()
+       << fc(32, 8, true) //F8, 16-in, 8-out
+       << relu()
+       << softmax();
+}
+
 int main(int argc, char *argv[])
 {
     //testCVAlg();
     //testCVAlg2();
+    //testCVAlg3();
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
     QApplication app(argc, argv);
     app.setWindowIcon(QIcon(dst::getCWD("/favicon.png")));

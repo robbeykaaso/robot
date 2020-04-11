@@ -66,21 +66,21 @@ void construct_split_net(tiny_dnn::network<tiny_dnn::sequential> &nn,
     using padding = tiny_dnn::padding;
     using softmax = tiny_dnn::softmax_layer;
 
-    nn << conv(512, 1, 4, 1, 1, 4, padding::same, true, 1, 1, 1, 1, backend_type) //C1, 1@512*1-in, 4@512*1-out
+    nn << conv(512, 1, 2, 1, 1, 2, padding::same, true, 1, 1, 1, 1) //C1, 1@512*1-in, 2@512*1-out
        << relu()
-       << max_pool(512, 1, 4, 4, 4, false) //S2, 4@512*512-in, 4@128*128-out
-       << conv(128, 1, 4, 1, 4, 8, padding::same, true, 1, 1, 1, 1, backend_type) //C3, 4@128*1-in, 8@128*1-out
+       << max_pool(512, 1, 2, 2, 2, false) //S2, 2@512*1-in, 2@256*1-out
+       << conv(256, 1, 4, 1, 2, 4, padding::same, true, 1, 1, 1, 1) //C3, 2@256*1-in, 4@256*1-out
        << relu()
-       << max_pool(128, 1, 8, 4, 4, false) //S4, 8@128*128-in, 8@64*64-out
-       << conv(64, 1, 4, 1, 8, 16, padding::same, true, 1, 1, 1, 1, backend_type) //C5, 8@64*1-in, 16@64*1-out
+       << max_pool(256, 1, 4, 4, 4, false) //S4, 4@256*1-in, 4@64*1-out
+       << conv(64, 1, 4, 1, 4, 8, padding::same, true, 1, 1, 1, 1) //C5, 4@64*1-in, 8@64*1-out
        << relu()
-       << max_pool(64, 1, 16, 4, 4, false) //S6, 16@64*64-in, 16@16*16-out
-       << conv(16, 1, 4, 1, 16, 32, padding::same, true, 1, 1, 1, 1, backend_type) //C7, 16@16*1-in, 32@16*1-out
+       << max_pool(64, 1, 8, 4, 4, false) //S6, 8@64*1-in, 8@16*1-out
+       << conv(16, 1, 8, 1, 8, 16, padding::same, true, 1, 1, 1, 1) //C7, 8@16*1-in, 16@16*1-out
        << relu()
-       << max_pool(16, 1, 32, 4, 4, false) //S8, 32@16*1-in, 32@4*1-out
-       << conv(4, 1, 4, 1, 32, 64, padding::same, true, 1, 1, 1, 1, backend_type) //C9, 32@4*1-in, 64@1*1-out
+       << max_pool(16, 1, 16, 4, 4, false)  //S8, 16@16*1-in, 16@4*1-in
+       << conv(4, 1, 4, 1, 16, 32, padding::valid, true, 1, 1, 1, 1) //C7, 16@4*1-in, 32@1*1-out
        << relu()
-       << fc(64, 7, true, backend_type) //F10, 64-in, 8-out
+       << fc(32, 8, true) //F8, 16-in, 8-out
        << relu()
        << softmax();
 }
@@ -264,9 +264,9 @@ tiny_dnn::network<tiny_dnn::sequential> trainingServer::prepareNetwork(const QSt
     tiny_dnn::network<tiny_dnn::sequential> nn;
     if (QDir().exists(aDirectory + aName)){
         //nn.load("Gem-LeNet-model", tiny_dnn::content_type::weights_and_model, tiny_dnn::file_format::json);
-        nn.load(aDirectory.toStdString() + m_task_name.toStdString() + "-LeNet-model");
+        nn.load(aDirectory.toStdString() + aName.toStdString());
         std::cout << "load models..." << std::endl;
-    }else if (aName == "Gem")
+    }else if (aName == "Gem-LeNet-model")
         construct_net(nn, m_backend_type);
     else
         construct_split_net(nn, m_backend_type);
@@ -303,7 +303,7 @@ tiny_dnn::vec_t trainingServer::prepareSplitImage(cv::Mat& aROI){
     for (int i = 0; i < 512; ++i){
         auto tmp = aROI.colRange(i, i + 1);
         auto test = cv::sum(tmp);
-        ret[i] = (100 - test.val[0]) / float_t(100) * 2 - 1;
+        ret[i] = (test.val[0]) / float_t(100);
     }
     return ret;
 }
@@ -447,7 +447,8 @@ int trainingServer::recognizeNumber(tiny_dnn::network<tiny_dnn::sequential>& aNe
     auto res = aNetwork.predict(aROI);
     std::vector<std::pair<double, int>> scores;
     for (int i = 0; i < res.size(); i++)
-        scores.emplace_back(rescale<tiny_dnn::tanh_layer>(res[i]), i);
+        scores.emplace_back(res[i], i);
+        //scores.emplace_back(rescale<tiny_dnn::tanh_layer>(res[i]), i);
     sort(scores.begin(), scores.end(), std::greater<std::pair<double, int>>());
     return scores[0].second;
 }
