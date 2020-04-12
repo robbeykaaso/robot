@@ -100,8 +100,8 @@ public:
         ++m_cards_count;
     }
     int getCardsCount() {return m_cards_count;}
-    cv::Rect getCardPos(int aIndex){
-        return m_cards_pos[m_cards_count - 1][aIndex];
+    cv::Rect getCardPos(int aSum, int aIndex){
+        return m_cards_pos[aSum][aIndex];
     }
     void supplyCard(std::shared_ptr<card> aCard){
         if (m_cards_count > 9)
@@ -345,7 +345,7 @@ private:
             if (cards.size() > 0){
                 auto card = *cards.begin();
 
-                auto st_pos = m_cards_model->getCardPos(card->getIndex());
+                auto st_pos = m_cards_model->getCardPos(m_cards_model->getCardsCount() - 1, card->getIndex());
                 auto st_x = st_pos.x + st_pos.width * 0.5, st_y = st_pos.y + st_pos.height * 0.5;
                 TRIG("controlWorld", STMJSON(dst::Json("type", "drag",
                                                        "org", dst::JArray(st_x, st_y),
@@ -380,10 +380,10 @@ public:
 
         int card_count = m_cards_model->getCardsCount();
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(2000)); //wait for new supplied card
+        std::this_thread::sleep_for(std::chrono::milliseconds(4000)); //wait for new supplied card
 
         if (card_count < 10){
-            auto pos = m_cards_model->getCardPos(card_count);
+            auto pos = m_cards_model->getCardPos(m_cards_model->getCardsCount(), card_count);
             auto roi = m_screen(pos);
             auto cost = trainingServer::instance()->recognizeNumber(roi);
             m_cards_model->supplyCard(std::make_shared<card>(card_count, cost));
@@ -500,6 +500,7 @@ protected:
             auto scr = i->isCurrentScene(dst, aImage);
             if (scr > score && scr > 0.5){
                 m_current_scene = i;
+                break;
             }
         }
     }
