@@ -48,16 +48,23 @@ public:
         }
     }
 protected:
-    double calcFeatureIOU(const cv::Mat& aBackground, const cv::Mat& aFeature, const cv::Rect& aPos, cv::Rect& aRetPos, const cv::Mat& aMask = cv::Mat()){
+    double calcFeatureIOU(const cv::Mat& aBackground, const cv::Mat& aFeature, const cv::Rect& aPos, cv::Rect& aRetPos, std::function<cv::Mat(const cv::Mat&)> aTransform = nullptr, const cv::Mat& aMask = cv::Mat()){
         if (aFeature.cols == 0 || aFeature.rows == 0 || aPos.width == 0 || aPos.height == 0)
             return 0;
         auto src = aBackground(cv::Rect(aPos.x - 5, aPos.y - 5, aPos.width + 5, aPos.height + 5));
 
         cv::Mat ret;
         if (aMask.cols == 0){
-            normalize(src, src, 0, 1, cv::NORM_MINMAX);
             cv::Mat fe;
-            normalize(aFeature, fe, 0, 1, cv::NORM_MINMAX);
+            if (aTransform){
+                src = aTransform(src);
+                fe = aTransform(aFeature);
+                //cv::imshow("hi", src);
+                //cv::imshow("hi2", fe);
+            }else{
+                normalize(src, src, 0, 1, cv::NORM_MINMAX);
+                normalize(aFeature, fe, 0, 1, cv::NORM_MINMAX);
+            }
             cv::matchTemplate(src, fe, ret, cv::TemplateMatchModes::TM_SQDIFF_NORMED);
         }else
             cv::matchTemplate(src, aFeature, ret, cv::TemplateMatchModes::TM_CCORR_NORMED, aMask);
@@ -123,7 +130,7 @@ public:
             i.clear();
         m_gem_count = 0;
         m_cards_count = 0;
-        TRIG("resetGame", STMJSON(QJsonObject()));
+        TRIG("resetGame", STMJSON(QJsonObject()))
     }
     std::set<std::shared_ptr<card>>* getCards(int aCost) {return &m_cards[aCost];}
     void setGemCount(int aCount) { m_gem_count = aCount;}
@@ -368,12 +375,19 @@ public:
         loadFeaturePos("enemyCountFeature", m_enemy_count_feature);
     }
     double isCurrentScene(const cv::Mat &aScreen, const QImage& aOrigin) override{
-        auto ret = calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc);
+        auto ret = calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc, [](const cv::Mat& aImage){
+            cv::Mat img;
+            cv::threshold(255 - aImage, img, 155, 255, cv::THRESH_TRUNC);
+            return 255 - img;
+        });
+        std::cout << ret << std::endl;
+
         if (ret == 1.0){
             m_screen = aScreen;
             m_origin = aOrigin;
-        }
-        return ret;
+            return ret;
+        }else
+            return 0;
     }
     void updateModel(std::shared_ptr<cardsModel> aCards) override{
         m_cards_model = aCards;
@@ -457,7 +471,7 @@ public:
         }
     }
     double isCurrentScene(const cv::Mat& aScreen, const QImage& aOrigin) override{
-        return calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc, m_button);
+        return calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc, nullptr, m_button);
     }
     void updateModel(std::shared_ptr<cardsModel> aCards) override{
 
