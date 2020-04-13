@@ -109,7 +109,7 @@ public:
         addCard(aCard);
     }
     void placeCard(std::shared_ptr<card> aCard) {
-        getCards(aCard->getCost()).erase(aCard);
+        getCards(aCard->getCost())->erase(aCard);
         --m_cards_count;
         for (int i = 0; i < 10; ++i)
             for (auto j : m_cards[i]){
@@ -125,12 +125,12 @@ public:
         m_cards_count = 0;
         TRIG("resetGame", STMJSON(QJsonObject()));
     }
-    std::set<std::shared_ptr<card>> getCards(int aCost) {return m_cards[aCost];}
+    std::set<std::shared_ptr<card>>* getCards(int aCost) {return &m_cards[aCost];}
     void setGemCount(int aCount) { m_gem_count = aCount;}
     int getGemCount() {return m_gem_count;}
 private:
-    int m_cards_count;
-    int m_gem_count;
+    int m_cards_count = 0;
+    int m_gem_count = 0;
     std::set<std::shared_ptr<card>> m_cards[11];
     cv::Rect m_cards_pos[10][10];
 };
@@ -342,8 +342,8 @@ private:
         auto higher_cost = std::min(gem_count, 10);
         for (int i = higher_cost; i >= 0;){
             auto cards = m_cards_model->getCards(i);
-            if (cards.size() > 0){
-                auto card = *cards.begin();
+            if (cards->size() > 0){
+                std::shared_ptr<card> card = *cards->begin();
 
                 auto st_pos = m_cards_model->getCardPos(m_cards_model->getCardsCount() - 1, card->getIndex());
                 auto st_x = st_pos.x + st_pos.width * 0.5, st_y = st_pos.y + st_pos.height * 0.5;
