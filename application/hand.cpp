@@ -5,18 +5,29 @@
 class robotHand : public dst::configObject{
 private:
     void mouseDrag(const QJsonArray& aOrigin, const QJsonArray& aDelta){
-        SetCursorPos(aOrigin[0].toDouble(), aOrigin[1].toDouble());
+        QPoint org(aOrigin[0].toDouble(), aOrigin[1].toDouble()),
+            del(aDelta[0].toDouble(), aDelta[1].toDouble());
+        SetCursorPos(org.x(), org.y());
         mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
-        mouse_event(MOUSEEVENTF_MOVE, aDelta[0].toDouble(), aDelta[1].toDouble(), 0, 0);
+        mouse_event(MOUSEEVENTF_MOVE, del.x(), del.y(), 0, 0);
         mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
+
+        dst::showDstLog("mouse drag: org: " + QString::number(org.x()) + " " + QString::number(org.y()) +
+                        "; del: " + QString::number(del.x()) + " " + QString::number(del.y()));
     }
     void mouseClick(const QJsonArray& aOrigin){
-        SetCursorPos(aOrigin[0].toDouble(), aOrigin[1].toDouble());
+        QPoint org(aOrigin[0].toDouble(), aOrigin[1].toDouble());
+        SetCursorPos(org.x(), org.y());
         mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
         mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
+
+        dst::showDstLog("mouse click: org: " + QString::number(org.x()) + " " + QString::number(org.y()));
     }
     void mouseMove(const QJsonArray& aOrigin){
-        SetCursorPos(aOrigin[0].toDouble(), aOrigin[1].toDouble());
+        QPoint org(aOrigin[0].toDouble(), aOrigin[1].toDouble());
+        SetCursorPos(org.x(), org.y());
+
+        dst::showDstLog("mouse move: org: " + QString::number(org.x()) + " " + QString::number(org.y()));
     }
 public:
     robotHand() : configObject(QJsonObject()){
@@ -29,7 +40,7 @@ public:
             else if (cfg->value("type") == "click")
                 mouseClick(cfg->value("org").toArray());
             return aInput;
-        }, "", "", 1);
+        }, "", "", 2);
     }
 };
 

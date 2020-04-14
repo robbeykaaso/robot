@@ -14,7 +14,7 @@ class robotBrain : public dst::configObject{
 protected:
     virtual void calcScene(const QImage& aImage);
     virtual void updateModel();
-    virtual QJsonObject calcOperation();
+    virtual bool calcOperation();
 private:
     void testCalc(const QImage& aImage);
     std::shared_ptr<dst::imageObject> m_screen;
@@ -22,12 +22,11 @@ private:
     double m_ratiox, m_ratioy;
 public:
     robotBrain();
-    ~robotBrain(){
+    ~robotBrain();
         // UnhookWindowsHookEx(g_hook);
-    }
 private:
+    QString m_logs = "";
     int m_tick = 0;
-    bool m_busy = false;
     bool m_go = false;
 };
 

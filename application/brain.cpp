@@ -89,7 +89,7 @@ void robotBrain::updateModel(){
 
 }
 
-QJsonObject robotBrain::calcOperation(){
+bool robotBrain::calcOperation(){
     QJsonObject ret;
     ret.insert("type", "drag");
     HWND pWind = FindWindow("Notepad", NULL);
@@ -103,31 +103,45 @@ QJsonObject robotBrain::calcOperation(){
         else
             ret.insert("del", dst::JArray(- 400, 0));
     }
-    return ret;
+    TRIG("controlWorld", STMJSON(ret));
+    return true;
 }
 
 void robotBrain::testCalc(const QImage& aImage){
-        if (!m_tick++){
-        cv::Mat src = QImage2cvMat(aImage);
-        cv::cvtColor(src, src, cv::COLOR_RGB2GRAY);
-        cv::Mat tmp = imread("config_/2.png", cv::IMREAD_GRAYSCALE);
-        cv::Mat ret;
-        cv::matchTemplate(src, tmp, ret, 0);
-        normalize(ret, ret, 0, 1, cv::NORM_MINMAX);
-        double minValue, maxValue;
-        cv::Point minLocation, maxLocation;
-        cv::Point matchLocation;
-        minMaxLoc(ret, &minValue, &maxValue, &minLocation, &maxLocation, cv::Mat());
-        //cv::rectangle(ret, minLocation, cv::Point(minLocation.x + tmp.cols, minLocation.y + tmp.rows), cv::Scalar(0,255,0), 2, 8);
-        cv::imshow("匹配后的图像", ret);
-        //cv::Mat ret;
-        //threshold(src, ret, 125, 255, cv::THRESH_BINARY);
-        //imshow("test", ret);
-        }
+    if (!m_tick++){
+    cv::Mat src = QImage2cvMat(aImage);
+    cv::cvtColor(src, src, cv::COLOR_RGB2GRAY);
+    cv::Mat tmp = imread("config_/2.png", cv::IMREAD_GRAYSCALE);
+    cv::Mat ret;
+    cv::matchTemplate(src, tmp, ret, 0);
+    normalize(ret, ret, 0, 1, cv::NORM_MINMAX);
+    double minValue, maxValue;
+    cv::Point minLocation, maxLocation;
+    cv::Point matchLocation;
+    minMaxLoc(ret, &minValue, &maxValue, &minLocation, &maxLocation, cv::Mat());
+    //cv::rectangle(ret, minLocation, cv::Point(minLocation.x + tmp.cols, minLocation.y + tmp.rows), cv::Scalar(0,255,0), 2, 8);
+    cv::imshow("匹配后的图像", ret);
+    //cv::Mat ret;
+    //threshold(src, ret, 125, 255, cv::THRESH_BINARY);
+    //imshow("test", ret);
     }
+}
 
+robotBrain::~robotBrain(){
+    QFile fl("log.txt");
+    if (fl.open(QFile::WriteOnly)){
+        fl.write(m_logs.toStdString().data());
+        fl.close();
+    }
+}
 
 robotBrain::robotBrain() : configObject(QJsonObject()){
+
+    dst::streamManager::instance()->registerEvent("addLogRecord", "mdybrain",  [this](std::shared_ptr<dst::streamData> aInput){
+        auto cfg = reinterpret_cast<dst::streamJson*>(aInput.get())->getData();
+        m_logs += cfg->value("log_msg").toString() + "\n";
+        return aInput;
+    });
 
     dst::streamManager::instance()->registerEvent("setImageTransform", "mdybrain",  [this](std::shared_ptr<dst::streamData> aInput){
         auto cfg = reinterpret_cast<dst::ImageBoard::streamTransform*>(aInput.get());
@@ -153,16 +167,12 @@ robotBrain::robotBrain() : configObject(QJsonObject()){
     });
 
     dst::streamManager::instance()->registerEvent("handleImage", "mdybrain",  [this](std::shared_ptr<dst::streamData> aInput){
-        if (!m_busy){
-            m_busy = true;
-            auto cfg = reinterpret_cast<dst::imageObject::streamImage*>(aInput.get());
-            auto img = cfg->getImage()->getImage();
-            if (m_go){
-                calcScene(img);
-                updateModel();
-                TRIG("controlWorld", STMJSON(calcOperation()));
-            }
-            m_busy = false;
+        auto cfg = reinterpret_cast<dst::imageObject::streamImage*>(aInput.get());
+        auto img = cfg->getImage()->getImage();
+        if (m_go){
+            calcScene(img);
+            updateModel();
+            calcOperation();
         }
         return aInput;
     }, "", "", 1);

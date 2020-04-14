@@ -28,7 +28,7 @@ public:
     virtual ~scene(){}
     virtual double isCurrentScene(const cv::Mat& aScreen, const QImage& aOrigin) = 0;
     virtual void updateModel(std::shared_ptr<cardsModel> aCards) = 0;
-    virtual QJsonObject calcOperation() = 0;
+    virtual bool calcOperation() { return false;}
     static void loadFeaturePos(const QString& aName, cv::Rect& aPos){
         QFile fl("config_/hearthStone/" + aName + ".json");
         if (fl.open(QFile::ReadOnly)){
@@ -48,7 +48,13 @@ public:
         }
     }
 protected:
-    double calcFeatureIOU(const cv::Mat& aBackground, const cv::Mat& aFeature, const cv::Rect& aPos, cv::Rect& aRetPos, std::function<cv::Mat(const cv::Mat&)> aTransform = nullptr, const cv::Mat& aMask = cv::Mat()){
+    double calcFeatureIOU(const cv::Mat& aBackground, const cv::Mat& aFeature, const cv::Rect& aPos, cv::Rect& aRetPos, const cv::Mat& aMask = cv::Mat(),
+                          std::function<cv::Mat(const cv::Mat&)> aTransform = [](const cv::Mat& aImage){
+                              cv::Mat ret;
+                              normalize(aImage, ret, 0, 1, cv::NORM_MINMAX);
+                              return ret;
+                          })
+    {
         if (aFeature.cols == 0 || aFeature.rows == 0 || aPos.width == 0 || aPos.height == 0)
             return 0;
         auto src = aBackground(cv::Rect(aPos.x - 5, aPos.y - 5, aPos.width + 5, aPos.height + 5));
@@ -56,15 +62,10 @@ protected:
         cv::Mat ret;
         if (aMask.cols == 0){
             cv::Mat fe;
-            if (aTransform){
-                src = aTransform(src);
-                fe = aTransform(aFeature);
-                //cv::imshow("hi", src);
-                //cv::imshow("hi2", fe);
-            }else{
-                normalize(src, src, 0, 1, cv::NORM_MINMAX);
-                normalize(aFeature, fe, 0, 1, cv::NORM_MINMAX);
-            }
+            src = aTransform(src);
+            fe = aTransform(aFeature);
+            //cv::imshow("hi", src);
+            //cv::imshow("hi2", fe);
             cv::matchTemplate(src, fe, ret, cv::TemplateMatchModes::TM_SQDIFF_NORMED);
         }else
             cv::matchTemplate(src, aFeature, ret, cv::TemplateMatchModes::TM_CCORR_NORMED, aMask);
@@ -103,6 +104,7 @@ public:
             }
     }
     void addCard(std::shared_ptr<card> aCard){
+        dst::showDstLog("card add: index " + QString::number(aCard->getIndex()) + "; cost " + QString::number(aCard->getCost()));
         m_cards[aCard->getCost()].insert(aCard);
         ++m_cards_count;
     }
@@ -116,6 +118,7 @@ public:
         addCard(aCard);
     }
     void placeCard(std::shared_ptr<card> aCard) {
+        dst::showDstLog("card place: index " + QString::number(aCard->getIndex()) + "; cost " + QString::number(aCard->getCost()));
         getCards(aCard->getCost())->erase(aCard);
         --m_cards_count;
         for (int i = 0; i < 10; ++i)
@@ -156,10 +159,12 @@ public:
         return calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc);
     }
     void updateModel(std::shared_ptr<cardsModel> aCards) override{
+        dst::showDstLog("ready : ");
         aCards->resetModel();
     }
-    QJsonObject calcOperation() override{
-        return dst::Json("type", "click", "org", dst::JArray(m_opt_loc.x + m_opt_loc.width * 0.5, m_opt_loc.y + m_opt_loc.height * 0.5));
+    bool calcOperation() override{
+        TRIG("controlWorld", STMJSON(dst::Json("type", "click", "org", dst::JArray(m_opt_loc.x + m_opt_loc.width * 0.5, m_opt_loc.y + m_opt_loc.height * 0.5))));
+        return true;
     }
 };
 
@@ -272,15 +277,18 @@ public:
         if (m_cards.size() > 0)
             return 0;
         auto ret = calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc);
-        if (ret > 0)
+        if (ret > 0.99){
+            dst::showDstLog("first select conf: " + QString::number(ret));
             selectScene::isCurrentScene(aScreen, aOrigin);
+        }
         return ret;
     }
     void updateModel(std::shared_ptr<cardsModel> aCards) override{
+        dst::showDstLog("first select : ");
         for (auto i : m_cards)
             aCards->addCard(i);
     }
-    QJsonObject calcOperation() override{
+    bool calcOperation() override{
         /*TRIG("controlWorld", STMJSON(dst::Json("type", "click",
                                                "org", dst::JArray(m_set_loc.x + m_set_loc.width * 0.5, m_set_loc.y + m_set_loc.height * 0.5))));
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
@@ -288,7 +296,8 @@ public:
                                                "org", dst::JArray(m_giveup_loc.x + m_giveup_loc.width * 0.5, m_giveup_loc.y + m_giveup_loc.height * 0.5))));
         std::this_thread::sleep_for(std::chrono::milliseconds(10000));*/
         //return QJsonObject();
-        return dst::Json("type", "click", "org", dst::JArray(m_opt_loc.x + m_opt_loc.width * 0.5, m_opt_loc.y + m_opt_loc.height * 0.5));
+        TRIG("controlWorld", STMJSON(dst::Json("type", "click", "org", dst::JArray(m_opt_loc.x + m_opt_loc.width * 0.5, m_opt_loc.y + m_opt_loc.height * 0.5))));
+        return true;
     }
 };
 
@@ -375,12 +384,13 @@ public:
         loadFeaturePos("enemyCountFeature", m_enemy_count_feature);
     }
     double isCurrentScene(const cv::Mat &aScreen, const QImage& aOrigin) override{
-        auto ret = calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc, [](const cv::Mat& aImage){
+        cv::Mat msk;
+        auto ret = calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc, msk, [](const cv::Mat& aImage){
             cv::Mat img;
             cv::threshold(255 - aImage, img, 155, 255, cv::THRESH_TRUNC);
             return 255 - img;
         });
-        std::cout << ret << std::endl;
+        dst::showDstLog("myTurn conf : " + QString::number(ret));
 
         if (ret == 1.0){
             m_screen = aScreen;
@@ -390,6 +400,8 @@ public:
             return 0;
     }
     void updateModel(std::shared_ptr<cardsModel> aCards) override{
+        dst::showDstLog("myTurn : ");
+
         m_cards_model = aCards;
 
         int card_count = m_cards_model->getCardsCount();
@@ -421,10 +433,11 @@ public:
         }
         aCards->setGemCount(std::min(10, aCards->getGemCount() + 1));
     }
-    QJsonObject calcOperation() override{
+    bool calcOperation() override{
         //attackEnemy();
         placeCards();
-        return dst::Json("type", "click", "org", dst::JArray(m_opt_loc.x + m_opt_loc.width * 0.5, m_opt_loc.y + m_opt_loc.height * 0.5));
+        TRIG("controlWorld", STMJSON(dst::Json("type", "click", "org", dst::JArray(m_opt_loc.x + m_opt_loc.width * 0.5, m_opt_loc.y + m_opt_loc.height * 0.5))));
+        return true;
     }
 };
 
@@ -443,9 +456,6 @@ public:
     }
     void updateModel(std::shared_ptr<cardsModel> aCards) override{
 
-    }
-    QJsonObject calcOperation() override{
-        return QJsonObject();
     }
 };
 
@@ -471,13 +481,14 @@ public:
         }
     }
     double isCurrentScene(const cv::Mat& aScreen, const QImage& aOrigin) override{
-        return calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc, nullptr, m_button);
+        return calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc, m_button);
     }
     void updateModel(std::shared_ptr<cardsModel> aCards) override{
-
+        dst::showDstLog("game over : ");
     }
-    QJsonObject calcOperation() override{
-        return dst::Json("type", "click", "org", dst::JArray(m_opt_loc.x + m_opt_loc.width * 0.5, m_opt_loc.y + m_opt_loc.height * 0.5));
+    bool calcOperation() override{
+        TRIG("controlWorld", STMJSON(dst::Json("type", "click", "org", dst::JArray(m_opt_loc.x + m_opt_loc.width * 0.5, m_opt_loc.y + m_opt_loc.height * 0.5))));
+        return true;
     }
 };
 
@@ -522,11 +533,11 @@ protected:
         if (m_current_scene)
             m_current_scene->updateModel(m_cards);
     }
-    QJsonObject calcOperation() override {
+    bool calcOperation() override {
         if (m_current_scene)
             return m_current_scene->calcOperation();
         else
-            return QJsonObject();
+            return false;
     }
 private:
     std::shared_ptr<scene> m_current_scene;
