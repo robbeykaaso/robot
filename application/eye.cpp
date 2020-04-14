@@ -8,6 +8,7 @@
 class robotEye : public dst::configObject{
     //Q_OBJECT
 public:
+    //int m_tick = 0;
     robotEye() : configObject(QJsonObject()){
         dst::streamManager::instance()->registerEvent("handleImage", "mdyeye",  [this](std::shared_ptr<dst::streamData> aInput){
             m_timer.start();
@@ -18,6 +19,7 @@ public:
         connect(&m_timer, &QTimer::timeout, [this](){
             QScreen *screen = QGuiApplication::primaryScreen();
             auto img = screen->grabWindow(0).toImage();
+            //img.save(QString::number(m_tick++) + ".png");
 
             auto stm = std::make_shared<dst::imageObject::streamImage>(dst::Json("board", "panel"));
             auto doc = dst::cacheObject::createObject<dst::imageObject>(QJsonObject(), std::make_shared<dst::imageObject::imageAdditionalParameter>(img));

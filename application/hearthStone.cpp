@@ -435,8 +435,9 @@ public:
     }
     bool calcOperation() override{
         //attackEnemy();
-        placeCards();
+        //placeCards();
         TRIG("controlWorld", STMJSON(dst::Json("type", "click", "org", dst::JArray(m_opt_loc.x + m_opt_loc.width * 0.5, m_opt_loc.y + m_opt_loc.height * 0.5))));
+        std::this_thread::sleep_for(std::chrono::milliseconds(3000));
         return true;
     }
 };
