@@ -1,7 +1,7 @@
 //#include "framework/uimanager.h"
 #include "../framework/document.h"
 //#include "glrender.h"
-//#include "../framework/util.h"
+#include "../framework/util.h"
 //#include "../framework/ImageBoard.h"
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
@@ -142,11 +142,47 @@ void testCVAlg3() {
        << softmax();
 }
 
+void testCVAlg4(){
+    bool tbl[] = {false, true, false, true, false, false, false, false, true};
+
+    tiny_dnn::network<tiny_dnn::sequential> nn;
+    //nn << tiny_dnn::layers::conv(3, 3, 3, 1, 1, tiny_dnn::core::connection_table(tbl, 3, 3), tiny_dnn::padding::valid, true, 1, 1, 1, 1)
+    //   << tiny_dnn::activation::relu();
+    nn.load("Gem-LeNet-model3.json", tiny_dnn::content_type::weights_and_model, tiny_dnn::file_format::json);
+
+
+    std::vector<tiny_dnn::vec_t> imgs;
+    std::vector<tiny_dnn::vec_t> lbls;
+    srand( (unsigned)time(NULL));
+    for (int j = 0; j < 100; ++j){
+        tiny_dnn::vec_t src;
+        for (int i = 0; i < 9; ++i)
+            src.push_back(std::rand() % 10 / 10.0);
+        imgs.push_back(src);
+        tiny_dnn::vec_t src2;
+        src2.push_back(std::rand() % 10);
+        lbls.push_back(src2);
+    }
+
+    tiny_dnn::adagrad optimizer;
+    tiny_dnn::timer t;
+    optimizer.alpha *=
+        std::min(tiny_dnn::float_t(4),
+                 static_cast<tiny_dnn::float_t>(sqrt(12) * 0.001));
+    nn.train<tiny_dnn::mse>(optimizer, imgs, lbls, 10,
+                            100);
+
+    nn.save("Gem-LeNet-model4.json", tiny_dnn::content_type::weights_and_model, tiny_dnn::file_format::json);
+    //auto ret = nn.predict(src);
+    //ret = ret;
+}
+
 int main(int argc, char *argv[])
 {
     //testCVAlg();
     //testCVAlg2();
     //testCVAlg3();
+    //testCVAlg4();
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
     QApplication app(argc, argv);
     app.setWindowIcon(QIcon(dst::getCWD("/favicon.png")));
