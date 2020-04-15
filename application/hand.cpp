@@ -9,7 +9,7 @@ private:
             del(aDelta[0].toDouble(), aDelta[1].toDouble());
         SetCursorPos(org.x(), org.y());
         mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
-        mouse_event(MOUSEEVENTF_MOVE, del.x(), del.y(), 0, 0);
+        mouse_event(MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_MOVE, (del.x() + org.x()) * 65535 / 1920, (del.y() + org.y()) * 65535 / 1080, 0, 0);
         mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
 
         dst::showDstLog("mouse drag: org: " + QString::number(org.x()) + " " + QString::number(org.y()) +

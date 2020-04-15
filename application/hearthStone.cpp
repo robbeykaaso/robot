@@ -392,6 +392,7 @@ public:
         });
         dst::showDstLog("myTurn conf : " + QString::number(ret));
 
+        //aOrigin.save(QString::number(m_tick) + ".png");
         if (ret == 1.0){
             m_screen = aScreen;
             m_origin = aOrigin;
