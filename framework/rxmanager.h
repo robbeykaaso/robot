@@ -34,6 +34,15 @@ static aName ret; \
 return &ret;}
 
 DSTDLL QJsonObject Json(QJsonObject&& aTarget = QJsonObject());
+DSTDLL void Json(QJsonObject& aTarget);
+
+template <typename T, typename S, typename ...Args>
+QJsonObject Json(QJsonObject& aTarget, T&& first, S&& second, Args&&... rest)
+{
+    aTarget.insert(first, second);
+    Json(aTarget, std::forward<Args>(rest)...);
+    return aTarget;
+}
 
 template <typename T, typename S, typename ...Args>
 QJsonObject Json(QJsonObject&& aTarget, T&& first, S&& second, Args&&... rest)
@@ -52,6 +61,15 @@ QJsonObject Json(T&& first, S&& second, Args&&... rest)
 }
 
 DSTDLL QJsonArray JArray(QJsonArray&& aTarget = QJsonArray());
+DSTDLL void JArray(QJsonArray& aTarget);
+
+template <typename T, typename ...Args>
+QJsonArray JArray(QJsonArray& aTarget, T&& first, Args&&... rest)
+{
+    aTarget.push_back(first);
+    JArray(aTarget, std::forward<Args>(rest)...);
+    return aTarget;
+}
 
 template <typename T, typename ...Args>
 QJsonArray JArray(QJsonArray&& aTarget, T&& first, Args&&... rest)
@@ -74,6 +92,7 @@ public:
     streamData(std::function<void(void*)> aCallback = nullptr) {
         m_callback = aCallback;
     }
+    streamData(streamData&&) = delete;
     virtual ~streamData() {}
     void callback(void* aParam) {
         if (m_callback != nullptr)
@@ -183,6 +202,7 @@ public:
     friend threadEvent;
 public:
     streamManager();
+    streamManager(streamManager&&) = delete;
     ~streamManager();
     threadEvent* registerEvent(const QString& aSignal, const QString& aEventName, threadEvent* aEvent);
     threadEvent* registerEvent(const QString& aSignal, const QString& aEventName, streamFunc aFunc,
