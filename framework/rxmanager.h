@@ -33,22 +33,38 @@ std::lock_guard<std::mutex> lg(aName##_mutex); \
 static aName ret; \
 return &ret;}
 
-DSTDLL QJsonObject Json();
+DSTDLL QJsonObject Json(QJsonObject&& aTarget = QJsonObject());
 
 template <typename T, typename S, typename ...Args>
-QJsonObject Json(T first, S second, Args... rest)
+QJsonObject Json(QJsonObject&& aTarget, T&& first, S&& second, Args&&... rest)
 {
-    auto ret = Json(rest...);
+    auto ret = Json(std::forward<QJsonObject>(aTarget), std::forward<Args>(rest)...);
     ret.insert(first, second);
     return ret;
 }
 
-DSTDLL QJsonArray JArray();
+template <typename T, typename S, typename ...Args>
+QJsonObject Json(T&& first, S&& second, Args&&... rest)
+{
+    auto ret = Json(QJsonObject(), std::forward<Args>(rest)...);
+    ret.insert(first, second);
+    return ret;
+}
+
+DSTDLL QJsonArray JArray(QJsonArray&& aTarget = QJsonArray());
 
 template <typename T, typename ...Args>
-QJsonArray JArray(T first, Args... rest)
+QJsonArray JArray(QJsonArray&& aTarget, T&& first, Args&&... rest)
 {
-    auto ret = JArray(rest...);
+    auto ret = JArray(std::forward<QJsonArray>(aTarget), std::forward<Args>(rest)...);
+    ret.push_front(first);
+    return ret;
+}
+
+template <typename T, typename ...Args>
+QJsonArray JArray(T&& first, Args&&... rest)
+{
+    auto ret = JArray(QJsonArray(), std::forward<Args>(rest)...);
     ret.push_front(first);
     return ret;
 }
