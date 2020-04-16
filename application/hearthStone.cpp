@@ -3,6 +3,7 @@
 #include "decimal_infer.h"
 #include <QJsonDocument>
 #include <QDir>
+#include <QScreen>
 #include <opencv2/opencv.hpp>
 
 class card{
@@ -57,7 +58,7 @@ protected:
     {
         if (aFeature.cols == 0 || aFeature.rows == 0 || aPos.width == 0 || aPos.height == 0)
             return 0;
-        auto src = aBackground(cv::Rect(aPos.x - 5, aPos.y - 5, aPos.width + 5, aPos.height + 5));
+        auto src = aBackground(cv::Rect(aPos.x - 5, aPos.y - 5, aPos.width + 10, aPos.height + 10));
 
         cv::Mat ret;
         if (aMask.cols == 0){
@@ -375,6 +376,7 @@ private:
         }
     }
 public:
+    int m_tick = 0;
     myTurnScene() : scene(){
         loadFeatureImage("myTurn", m_button);
         loadFeaturePos("myTurn", m_loc);
@@ -392,10 +394,10 @@ public:
         });
         dst::showDstLog("myTurn conf : " + QString::number(ret));
 
-        //aOrigin.save(QString::number(m_tick) + ".png");
         if (ret == 1.0){
-            m_screen = aScreen;
-            m_origin = aOrigin;
+           // aOrigin.save(QString::number(m_tick++) + ".png");
+          //  m_screen = aScreen;
+          //  m_origin = aOrigin;
             return ret;
         }else
             return 0;
@@ -408,6 +410,10 @@ public:
         int card_count = m_cards_model->getCardsCount();
 
         std::this_thread::sleep_for(std::chrono::milliseconds(4000)); //wait for new supplied card
+        QScreen *screen = QGuiApplication::primaryScreen();
+        m_origin = screen->grabWindow(0).toImage();
+        m_screen = QImage2cvMat(m_origin);
+        cv::cvtColor(m_screen, m_screen, cv::COLOR_RGB2GRAY);
 
         if (card_count < 10){
             auto pos = m_cards_model->getCardPos(m_cards_model->getCardsCount(), card_count);
@@ -436,9 +442,11 @@ public:
     }
     bool calcOperation() override{
         //attackEnemy();
-        //placeCards();
+        placeCards();
+       // dst::showDstLog("before : ");
         TRIG("controlWorld", STMJSON(dst::Json("type", "click", "org", dst::JArray(m_opt_loc.x + m_opt_loc.width * 0.5, m_opt_loc.y + m_opt_loc.height * 0.5))));
-        std::this_thread::sleep_for(std::chrono::milliseconds(3000));
+       // dst::showDstLog("after : ");
+       // std::this_thread::sleep_for(std::chrono::milliseconds(1000));
         return true;
     }
 };

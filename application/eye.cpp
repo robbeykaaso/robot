@@ -13,7 +13,7 @@ public:
         dst::streamManager::instance()->registerEvent("handleImage", "mdyeye",  [this](std::shared_ptr<dst::streamData> aInput){
             m_timer.start();
             return aInput;
-        });
+        }, "mdybrain", "");
 
         m_timer.setSingleShot(true);
         connect(&m_timer, &QTimer::timeout, [this](){

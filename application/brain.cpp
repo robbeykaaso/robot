@@ -161,6 +161,9 @@ robotBrain::robotBrain() : configObject(QJsonObject()){
         auto cfg = reinterpret_cast<dst::imageObject::streamImage*>(aInput.get())->getData();
         if (cfg->value("key") == 16777236){
             m_go = true;
+            //TRIG("controlWorld", STMJSON(dst::Json("type", "drag",
+            //                                       "org", dst::JArray(751, 916),
+            //                                       "del", dst::JArray(478, - 428))))
         }
         else
             m_go = false;

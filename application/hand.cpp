@@ -8,8 +8,11 @@ private:
         QPoint org(aOrigin[0].toDouble(), aOrigin[1].toDouble()),
             del(aDelta[0].toDouble(), aDelta[1].toDouble());
         SetCursorPos(org.x(), org.y());
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
         mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
         mouse_event(MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_MOVE, (del.x() + org.x()) * 65535 / 1920, (del.y() + org.y()) * 65535 / 1080, 0, 0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
         mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
 
         dst::showDstLog("mouse drag: org: " + QString::number(org.x()) + " " + QString::number(org.y()) +
@@ -40,7 +43,7 @@ public:
             else if (cfg->value("type") == "click")
                 mouseClick(cfg->value("org").toArray());
             return aInput;
-        }, "", "", 2);
+        }, "", "", 1);
     }
 };
 
