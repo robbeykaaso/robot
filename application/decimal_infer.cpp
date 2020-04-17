@@ -567,7 +567,7 @@ void trainingServer::initialize(){
 
         int sz = fillData(train_labels, test_labels, train_images, test_images);
 
-        TRIG("sendToClient", STMJSON(dst::Json(
+        /*TRIG("sendToClient", STMJSON(dst::Json(
                                  "type", "task_log",
                                  "project_id", m_project_id,
                                  "task_id", m_task_id,
@@ -598,7 +598,7 @@ void trainingServer::initialize(){
         nn.train<tiny_dnn::mse>(optimizer, train_images, train_labels, m_minibatch,
                                 m_train_epochs, on_enumerate_minibatch,
                                 on_enumerate_epoch);
-        std::cout << "end training." << std::endl;
+        std::cout << "end training." << std::endl;*/
 
         //auto ret = nn.test(test_images, test_labels);
         //ret.print_detail(std::cout);
