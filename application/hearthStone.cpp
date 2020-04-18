@@ -350,10 +350,20 @@ private:
     cv::Mat m_button;
     cv::Rect m_loc;
     cv::Rect m_opt_loc;
+    cv::Rect m_gem_loc;
     std::shared_ptr<cardsModel> m_cards_model;
     cv::Rect m_card_place;
 private:
+    void captureScreen(){
+        QScreen *screen = QGuiApplication::primaryScreen();
+        m_origin = screen->grabWindow(0).toImage();
+        m_screen = QImage2cvMat(m_origin);
+        cv::cvtColor(m_screen, m_screen, cv::COLOR_RGB2GRAY);
+    }
+private:
     void placeCards(){
+        //= trainingServer::instance()->recognizeNumber(m_screen(m_gem_loc));
+
         int gem_count = m_cards_model->getGemCount();
 
         auto higher_cost = std::min(gem_count, 10);
@@ -384,20 +394,21 @@ public:
 
         loadFeaturePos("myCountFeature", m_my_count_feature);
         loadFeaturePos("enemyCountFeature", m_enemy_count_feature);
+
+        loadFeaturePos("gemPos", m_gem_loc);
     }
     double isCurrentScene(const cv::Mat &aScreen, const QImage& aOrigin) override{
         cv::Mat msk;
-        auto ret = calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc, msk, [](const cv::Mat& aImage){
-            cv::Mat img;
-            cv::threshold(255 - aImage, img, 155, 255, cv::THRESH_TRUNC);
-            return 255 - img;
-        });
+        auto ret = calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc, msk);
         dst::showDstLog("myTurn conf : " + QString::number(ret));
 
         if (ret == 1.0){
            // aOrigin.save(QString::number(m_tick++) + ".png");
           //  m_screen = aScreen;
           //  m_origin = aOrigin;
+            double mx;
+            cv::max(aScreen(m_opt_loc), mx);
+            dst::showDstLog("my turn max: " + QString::number(mx));
             return ret;
         }else
             return 0;
@@ -410,10 +421,7 @@ public:
         int card_count = m_cards_model->getCardsCount();
 
         std::this_thread::sleep_for(std::chrono::milliseconds(4000)); //wait for new supplied card
-        QScreen *screen = QGuiApplication::primaryScreen();
-        m_origin = screen->grabWindow(0).toImage();
-        m_screen = QImage2cvMat(m_origin);
-        cv::cvtColor(m_screen, m_screen, cv::COLOR_RGB2GRAY);
+        captureScreen();
 
         if (card_count < 10){
             auto pos = m_cards_model->getCardPos(m_cards_model->getCardsCount(), card_count);
@@ -442,7 +450,7 @@ public:
     }
     bool calcOperation() override{
         //attackEnemy();
-        placeCards();
+        //placeCards();
        // dst::showDstLog("before : ");
         TRIG("controlWorld", STMJSON(dst::Json("type", "click", "org", dst::JArray(m_opt_loc.x + m_opt_loc.width * 0.5, m_opt_loc.y + m_opt_loc.height * 0.5))));
        // dst::showDstLog("after : ");
