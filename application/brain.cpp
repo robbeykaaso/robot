@@ -103,7 +103,7 @@ bool robotBrain::calcOperation(){
         else
             ret.insert("del", dst::JArray(- 400, 0));
     }
-    TRIG("controlWorld", STMJSON(ret));
+    TRIG("controlWorld", STMJSON(ret))
     return true;
 }
 
@@ -128,14 +128,24 @@ void robotBrain::testCalc(const QImage& aImage){
 }
 
 robotBrain::~robotBrain(){
-    QFile fl("log.txt");
-    if (fl.open(QFile::WriteOnly)){
-        fl.write(m_logs.toStdString().data());
-        fl.close();
-    }
+
 }
 
 robotBrain::robotBrain() : configObject(QJsonObject()){
+
+    dst::streamManager::instance()->registerEvent("commandExportLog", "mdybrain", [this](std::shared_ptr<dst::streamData> aInput){
+        QFile fl("log.txt");
+        if (fl.open(QFile::WriteOnly)){
+            fl.write(m_logs.toStdString().data());
+            fl.close();
+        }
+        return aInput;
+    });
+
+    dst::streamManager::instance()->registerEvent("commandClearLog", "mdybrain", [this](std::shared_ptr<dst::streamData> aInput){
+        m_logs = "";
+        return aInput;
+    });
 
     dst::streamManager::instance()->registerEvent("addLogRecord", "mdybrain",  [this](std::shared_ptr<dst::streamData> aInput){
         auto cfg = reinterpret_cast<dst::streamJson*>(aInput.get())->getData();
@@ -232,6 +242,8 @@ REGISTERPipe(collectShapeCommand, mdydnn, [](std::shared_ptr<dst::streamData> aI
     items.insert("crop", "commandCrop");
     items.insert("train", "commandTrainGem");
     items.insert("dnntest", "commandDnnTest");
+    items.insert("exportLog", "commandExportLog");
+    items.insert("clearLog", "commandClearLog");
     aInput->callback(&items);
     return aInput;
 }, 0);

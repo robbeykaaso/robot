@@ -351,6 +351,7 @@ private:
     cv::Rect m_loc;
     cv::Rect m_opt_loc;
     cv::Rect m_gem_loc;
+    cv::Rect m_hero_loc;
     std::shared_ptr<cardsModel> m_cards_model;
     cv::Rect m_card_place;
 private:
@@ -362,27 +363,62 @@ private:
     }
 private:
     void placeCards(){
-        //= trainingServer::instance()->recognizeNumber(m_screen(m_gem_loc));
-
         int gem_count = m_cards_model->getGemCount();
+        std::set<std::shared_ptr<card>> used;
+        int i = - 1;
+        do{
+            dst::showDstLog("myTurn GemCount : " + QString::number(gem_count));
+            auto higher_cost = std::min(gem_count, 10);
+            i = higher_cost;
+            auto new_gem_count = gem_count;
+            for (; i >= 0; i--){
+                auto cards = *m_cards_model->getCards(i);
+                for (auto card : cards){
+                    if (used.find(card) != used.end())
+                        continue;
+                    auto st_pos = m_cards_model->getCardPos(m_cards_model->getCardsCount() - 1, card->getIndex());
+                    auto st_x = st_pos.x + st_pos.width * 0.5, st_y = st_pos.y + st_pos.height * 0.5;
+                    TRIG("controlWorld", STMJSON(dst::Json("type", "drag",
+                                                           "org", dst::JArray(st_x, st_y),
+                                                           "del", dst::JArray(m_card_place.x + m_card_place.width * 0.5 - st_x, m_card_place.y + m_card_place.height * 0.5 - st_y))));
+                    used.insert(card);
+                    captureScreen();
+                    new_gem_count = trainingServer::instance()->recognizeNumber(m_screen(m_gem_loc));
+                    savePredictResult2(m_gem_loc, QString::number(new_gem_count));
+                    if (new_gem_count != gem_count){
+                        m_cards_model->placeCard(card);
+                        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                        break;
+                    }
+                }
+                if (new_gem_count != gem_count){
+                    gem_count = new_gem_count;
+                    break;
+                }
+            }
+        }while(i >= 0);
 
-        auto higher_cost = std::min(gem_count, 10);
-        for (int i = higher_cost; i >= 0;){
-            auto cards = m_cards_model->getCards(i);
-            if (cards->size() > 0){
-                std::shared_ptr<card> card = *cards->begin();
+        if (gem_count > 1)
+            TRIG("controlWorld", STMJSON(dst::Json("type", "click",
+                                                   "org", dst::JArray(m_hero_loc.x + m_hero_loc.width * 0.5, m_hero_loc.y + m_hero_loc.height * 0.5))))
+    }
+private:
+    void savePredictResult2(const cv::Rect& aPos, const QString& aLabel){
+        auto id = savePredictResult("supplyCard", m_origin);
+        QJsonObject cfg;
+        cfg.insert("id", id);
+        cfg.insert("images", dst::JArray(id + "/0.png"));
+        QJsonObject shps;
+        shps.insert(dst::configObject::generateObjectID(),
+                    dst::Json("label", aLabel,
+                              "type", "rectangle",
+                              "points", dst::JArray(aPos.x, aPos.y, aPos.x + aPos.width, aPos.y + aPos.height)));
+        cfg.insert("shapes", shps);
 
-                auto st_pos = m_cards_model->getCardPos(m_cards_model->getCardsCount() - 1, card->getIndex());
-                auto st_x = st_pos.x + st_pos.width * 0.5, st_y = st_pos.y + st_pos.height * 0.5;
-                TRIG("controlWorld", STMJSON(dst::Json("type", "drag",
-                                                       "org", dst::JArray(st_x, st_y),
-                                                       "del", dst::JArray(m_card_place.x + m_card_place.width * 0.5 - st_x, m_card_place.y + m_card_place.height * 0.5 - st_y))));
-                m_cards_model->placeCard(card);
-                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-                gem_count -= card->getCost();
-                i -= card->getCost();
-            }else
-                --i;
+        QFile fl("config_/supplyCard/" + id + ".json");
+        if (fl.open(QFile::WriteOnly)){
+            fl.write(QJsonDocument(cfg).toJson());
+            fl.close();
         }
     }
 public:
@@ -396,6 +432,7 @@ public:
         loadFeaturePos("enemyCountFeature", m_enemy_count_feature);
 
         loadFeaturePos("gemPos", m_gem_loc);
+        loadFeaturePos("heroPos", m_hero_loc);
     }
     double isCurrentScene(const cv::Mat &aScreen, const QImage& aOrigin) override{
         cv::Mat msk;
@@ -404,12 +441,14 @@ public:
 
         if (ret == 1.0){
            // aOrigin.save(QString::number(m_tick++) + ".png");
-          //  m_screen = aScreen;
-          //  m_origin = aOrigin;
-            double mx;
-            cv::max(aScreen(m_opt_loc), mx);
-            dst::showDstLog("my turn max: " + QString::number(mx));
-            return ret;
+            double max, min;
+            cv::Point min_loc, max_loc;
+            cv::minMaxLoc(aScreen(m_opt_loc), &min, &max, &min_loc, &max_loc); //198,200,165,136,93;31
+            dst::showDstLog("my turn max: " + QString::number(max));
+            if (max < 40)
+                return 0;
+            else
+                return ret;
         }else
             return 0;
     }
@@ -429,28 +468,13 @@ public:
             auto cost = trainingServer::instance()->recognizeNumber(roi);
             m_cards_model->supplyCard(std::make_shared<card>(card_count, cost));
 
-            auto id = savePredictResult("supplyCard", m_origin);
-            QJsonObject cfg;
-            cfg.insert("id", id);
-            cfg.insert("images", dst::JArray(id + "/0.png"));
-            QJsonObject shps;
-            shps.insert(dst::configObject::generateObjectID(),
-                        dst::Json("label", QString::number(cost),
-                                  "type", "rectangle",
-                                  "points", dst::JArray(pos.x, pos.y, pos.x + pos.width, pos.y + pos.height)));
-            cfg.insert("shapes", shps);
-
-            QFile fl("config_/supplyCard/" + id + ".json");
-            if (fl.open(QFile::WriteOnly)){
-                fl.write(QJsonDocument(cfg).toJson());
-                fl.close();
-            }
+            savePredictResult2(pos, QString::number(cost));
         }
         aCards->setGemCount(std::min(10, aCards->getGemCount() + 1));
     }
     bool calcOperation() override{
         //attackEnemy();
-        //placeCards();
+        placeCards();
        // dst::showDstLog("before : ");
         TRIG("controlWorld", STMJSON(dst::Json("type", "click", "org", dst::JArray(m_opt_loc.x + m_opt_loc.width * 0.5, m_opt_loc.y + m_opt_loc.height * 0.5))));
        // dst::showDstLog("after : ");
