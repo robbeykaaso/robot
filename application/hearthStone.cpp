@@ -384,12 +384,14 @@ private:
                     used.insert(card);
                     captureScreen();
                     new_gem_count = trainingServer::instance()->recognizeNumber(m_screen(m_gem_loc));
+                    dst::showDstLog("myTurn new GemCount : " + QString::number(new_gem_count));
                     savePredictResult2(m_gem_loc, QString::number(new_gem_count));
                     if (new_gem_count != gem_count){
                         m_cards_model->placeCard(card);
                         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
                         break;
-                    }
+                    }else
+                        dst::showDstLog("card place fail: index " + QString::number(card->getIndex()) + "; cost " + QString::number(card->getCost()));
                 }
                 if (new_gem_count != gem_count){
                     gem_count = new_gem_count;
@@ -403,6 +405,26 @@ private:
                                                    "org", dst::JArray(m_hero_loc.x + m_hero_loc.width * 0.5, m_hero_loc.y + m_hero_loc.height * 0.5))))
     }
 private:
+    void savePredictResult2(const std::vector<cv::Rect>& aPoses, const std::vector<int>& aLabels){
+        auto id = savePredictResult("supplyCard", m_origin);
+        QJsonObject cfg;
+        cfg.insert("id", id);
+        cfg.insert("images", dst::JArray(id + "/0.png"));
+        QJsonObject shps;
+        for (int i = 0; i < aPoses.size(); ++i)
+        shps.insert(dst::configObject::generateObjectID(),
+                    dst::Json("label", QString::number(aLabels[i]),
+                              "type", "rectangle",
+                              "points", dst::JArray(aPoses[i].x, aPoses[i].y,
+                                                    aPoses[i].x + aPoses[i].width, aPoses[i].y + aPoses[i].height)));
+        cfg.insert("shapes", shps);
+
+        QFile fl("config_/supplyCard/" + id + ".json");
+        if (fl.open(QFile::WriteOnly)){
+            fl.write(QJsonDocument(cfg).toJson());
+            fl.close();
+        }
+    }
     void savePredictResult2(const cv::Rect& aPos, const QString& aLabel){
         auto id = savePredictResult("supplyCard", m_origin);
         QJsonObject cfg;
@@ -463,12 +485,20 @@ public:
         captureScreen();
 
         if (card_count < 10){
-            auto pos = m_cards_model->getCardPos(m_cards_model->getCardsCount(), card_count);
-            auto roi = m_screen(pos);
-            auto cost = trainingServer::instance()->recognizeNumber(roi);
+            std::vector<int> costs;
+            std::vector<cv::Rect> poses;
+            int cost;
+            cv::Rect pos;
+            for (int i = 0; i <= card_count; ++i){
+                auto pos = m_cards_model->getCardPos(m_cards_model->getCardsCount(), i);
+                auto roi = m_screen(pos);
+                cost = trainingServer::instance()->recognizeNumber(roi);
+                costs.push_back(cost);
+                poses.push_back(pos);
+            }
             m_cards_model->supplyCard(std::make_shared<card>(card_count, cost));
 
-            savePredictResult2(pos, QString::number(cost));
+            savePredictResult2(poses, costs);
         }
         aCards->setGemCount(std::min(10, aCards->getGemCount() + 1));
     }

@@ -274,7 +274,8 @@ tiny_dnn::network<tiny_dnn::sequential> trainingServer::prepareNetwork(const QSt
 }
 
 tiny_dnn::vec_t trainingServer::prepareGemImage(cv::Mat& aROI){
-    cv::cvtColor(aROI, aROI, cv::COLOR_RGB2GRAY);
+    if (aROI.type() != CV_8UC1)
+        cv::cvtColor(aROI, aROI, cv::COLOR_RGB2GRAY);
     cv::resize(aROI, aROI, cv::Size(32, 32));
     /*cv::namedWindow("hello",0);
     cv::moveWindow("hello", 300, 0);
@@ -459,8 +460,9 @@ int trainingServer::recognizeNumber(const cv::Mat& aROI){
         m_gem_net.load("Gem-LeNet-model");
         m_gem_net_loaded = true;
     }
-    tiny_dnn::vec_t data;
-    convert_image(aROI, -1.0, 1.0, 32, 32, data);
+    auto roi = aROI;
+    tiny_dnn::vec_t data = prepareGemImage(roi);
+    //convert_image(aROI, -1.0, 1.0, 32, 32, data);
     return predict(m_gem_net, data);
 }
 
