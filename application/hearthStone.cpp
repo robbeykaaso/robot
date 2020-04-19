@@ -77,7 +77,7 @@ protected:
         minMaxLoc(ret, &minValue, &maxValue, &minLocation, &maxLocation, cv::Mat());
 
         if ((aMask.cols == 0 && minValue < 0.05) ||
-            (aMask.cols > 0 && maxValue > 0.95)){
+            (aMask.cols > 0 && maxValue > 0.999)){
             cv::Rect target(minLocation.x, minLocation.y, aPos.width, aPos.height), origin(5, 5, aPos.width, aPos.height);
             aRetPos = cv::Rect(minLocation.x - 5 + aPos.x, minLocation.y - 5 + aPos.y, aPos.width, aPos.height);
             return (target & origin).area() * 1.0 / (target | origin).area();
@@ -540,7 +540,7 @@ public:
     gameOverScene() : scene(){
         loadFeaturePos("gameOver", m_loc);
         loadFeatureImage("gameOver", m_button);
-        if (m_button.cols > 0 && m_button.rows > 0){
+        /*if (m_button.cols > 0 && m_button.rows > 0){
             cv::Mat feature(m_button.rows, m_button.cols, CV_8UC1, cv::Scalar(0, 0, 0));
             for (int i = 0; i < 5; ++i){
                 cv::Rect loc;
@@ -550,10 +550,10 @@ public:
             }
             m_button = feature;
             //cv::imshow("hello", m_button);
-        }
+        }*/
     }
     double isCurrentScene(const cv::Mat& aScreen, const QImage& aOrigin) override{
-        return calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc, m_button);
+        return calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc);
     }
     void updateModel(std::shared_ptr<cardsModel> aCards) override{
         dst::showDstLog("game over : ");
@@ -572,7 +572,7 @@ public:
         m_scenes.push_back(std::make_shared<firstSelectScene>());
         m_scenes.push_back(std::make_shared<myTurnScene>());
         m_scenes.push_back(std::make_shared<enemyTurnScene>());
-        //m_scenes.push_back(std::make_shared<gameOverScene>());
+        m_scenes.push_back(std::make_shared<gameOverScene>());
 
         dst::streamManager::instance()->registerEvent("commandTrainGem", "mdyHearthStone", [this](std::shared_ptr<dst::streamData> aInput){
             trainingServer::instance()->trainGemModel();
