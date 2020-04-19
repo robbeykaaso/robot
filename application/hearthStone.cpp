@@ -221,7 +221,7 @@ public:
             m_cards.push_back(std::make_shared<card>(4, 0));
         //cv::imwrite("config_/src.png", aScreen);
 
-        savePredictResult("firstSelect", aOrigin);
+        //savePredictResult("firstSelect", aOrigin);
 
         return 1;
     }
