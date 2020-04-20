@@ -13,6 +13,7 @@ public:
     void trainGemModel();
     void trainSplitModel();
     int predict(tiny_dnn::network<tiny_dnn::sequential>& aNetwork, const tiny_dnn::vec_t& aROI);
+    int predict(tiny_dnn::network<tiny_dnn::sequential>& aNetwork, const tiny_dnn::vec_t& aROI, QJsonArray& aHistogram);
     int recognizeNumber(const cv::Mat& aROI);
     int recognizeCount(const cv::Mat& aROI);
 protected:
@@ -41,6 +42,7 @@ private:
     QString m_job_state = "";
     QStringList m_anno_list;
     QStringList m_result_list;
+    QVector<QJsonArray> m_result_histogram;
 private:
     tiny_dnn::network<tiny_dnn::sequential> m_gem_net;
     bool m_gem_net_loaded;

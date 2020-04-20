@@ -454,6 +454,18 @@ int trainingServer::predict(tiny_dnn::network<tiny_dnn::sequential>& aNetwork, c
     return scores[0].second;
 }
 
+int trainingServer::predict(tiny_dnn::network<tiny_dnn::sequential>& aNetwork, const tiny_dnn::vec_t& aROI, QJsonArray& aHistogram){
+    auto res = aNetwork.predict(aROI);
+    std::vector<std::pair<double, int>> scores;
+    for (int i = 0; i < res.size(); i++){
+        aHistogram.push_back((res[i] + 1) * 50);
+        scores.emplace_back(res[i], i);
+    }
+    //scores.emplace_back(rescale<tiny_dnn::tanh_layer>(res[i]), i);
+    sort(scores.begin(), scores.end(), std::greater<std::pair<double, int>>());
+    return scores[0].second;
+}
+
 int trainingServer::recognizeNumber(const cv::Mat& aROI){
     //nn.load("Gem-LeNet-model", tiny_dnn::content_type::weights_and_model, tiny_dnn::file_format::json);
     if (!m_gem_net_loaded){
@@ -505,6 +517,7 @@ bool trainingServer::tryPrepareJob(const QJsonObject& aRequest){
     auto lst = dt.value("uuid_list").toArray();
     m_anno_list.clear();
     m_result_list.clear();
+    m_result_histogram.clear();
     for (auto i : lst)
         m_anno_list.push_back(i.toString() + ".json");
     return true;
@@ -534,8 +547,11 @@ void trainingServer::initialize(){
         prepareTrainData(train_labels, test_labels, train_images, test_images, m_root, m_anno_list, m_task_name);
 
         std::vector<tiny_dnn::label_t> test_ret;
-        for (int j = 0; j < test_images.size(); ++j)
-            m_result_list.push_back(QString::number(predict(nn, test_images.at(j))));
+        for (int j = 0; j < test_images.size(); ++j){
+            QJsonArray his;
+            m_result_list.push_back(QString::number(predict(nn, test_images.at(j), his)));
+            m_result_histogram.push_back(his);
+        }
         m_job_state = "process_finish";
 
         return aInput;
@@ -630,8 +646,11 @@ void trainingServer::initialize(){
                                  "log_msg", "start testing")));
 
         std::vector<tiny_dnn::label_t> test_ret;
-        for (int j = 0; j < sz; ++j)
-            m_result_list.push_back(QString::number(predict(nn, test_images.at(j))));
+        for (int j = 0; j < sz; ++j){
+            QJsonArray his;
+            m_result_list.push_back(QString::number(predict(nn, test_images.at(j), his)));
+            m_result_histogram.push_back(his);
+        }
         m_job_state = "process_finish";
 
         return aInput;
@@ -678,6 +697,7 @@ void trainingServer::initialize(){
                     auto shp = j.toObject();
                     shp.insert("origin_shape_index", idx++);
                     shp.insert("score", 1.0);
+                    shp.insert("histogram", m_result_histogram[pred_idx]);
                     shp.insert("label", m_result_list[pred_idx++]);
                     ret_shps.push_back(shp);
                 }
