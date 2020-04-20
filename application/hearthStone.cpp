@@ -49,7 +49,8 @@ public:
         }
     }
 protected:
-    double calcFeatureIOU(const cv::Mat& aBackground, const cv::Mat& aFeature, const cv::Rect& aPos, cv::Rect& aRetPos, const cv::Mat& aMask = cv::Mat(),
+    double calcFeatureIOU(const cv::Mat& aBackground, const cv::Mat& aFeature, const cv::Rect& aPos, cv::Rect& aRetPos,
+                          int aInflate = 5, const cv::Mat& aMask = cv::Mat(),
                           std::function<cv::Mat(const cv::Mat&)> aTransform = [](const cv::Mat& aImage){
                               cv::Mat ret;
                               normalize(aImage, ret, 0, 1, cv::NORM_MINMAX);
@@ -58,7 +59,7 @@ protected:
     {
         if (aFeature.cols == 0 || aFeature.rows == 0 || aPos.width == 0 || aPos.height == 0)
             return 0;
-        auto src = aBackground(cv::Rect(aPos.x - 5, aPos.y - 5, aPos.width + 10, aPos.height + 10));
+        auto src = aBackground(cv::Rect(aPos.x - aInflate, aPos.y - aInflate, aPos.width + 2 * aInflate, aPos.height + 2 * aInflate));
 
         cv::Mat ret;
         if (aMask.cols == 0){
@@ -382,13 +383,14 @@ private:
                                                            "org", dst::JArray(st_x, st_y),
                                                            "del", dst::JArray(m_card_place.x + m_card_place.width * 0.5 - st_x, m_card_place.y + m_card_place.height * 0.5 - st_y))));
                     used.insert(card);
+                    std::this_thread::sleep_for(std::chrono::milliseconds(500));
                     captureScreen();
                     new_gem_count = trainingServer::instance()->recognizeNumber(m_screen(m_gem_loc));
                     dst::showDstLog("myTurn new GemCount : " + QString::number(new_gem_count));
                     savePredictResult2(m_gem_loc, QString::number(new_gem_count));
-                    if (new_gem_count != gem_count){
+                    if (new_gem_count != gem_count || card->getCost() == 0){
                         m_cards_model->placeCard(card);
-                        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                        //std::this_thread::sleep_for(std::chrono::milliseconds(1000));
                         break;
                     }else
                         dst::showDstLog("card place fail: index " + QString::number(card->getIndex()) + "; cost " + QString::number(card->getCost()));
@@ -457,8 +459,7 @@ public:
         loadFeaturePos("heroPos", m_hero_loc);
     }
     double isCurrentScene(const cv::Mat &aScreen, const QImage& aOrigin) override{
-        cv::Mat msk;
-        auto ret = calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc, msk);
+        auto ret = calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc);
         dst::showDstLog("myTurn conf : " + QString::number(ret));
 
         if (ret == 1.0){
@@ -553,7 +554,7 @@ public:
         }*/
     }
     double isCurrentScene(const cv::Mat& aScreen, const QImage& aOrigin) override{
-        return calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc);
+        return calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc, 20);
     }
     void updateModel(std::shared_ptr<cardsModel> aCards) override{
         dst::showDstLog("game over : ");
