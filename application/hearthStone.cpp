@@ -554,7 +554,7 @@ public:
         }*/
     }
     double isCurrentScene(const cv::Mat& aScreen, const QImage& aOrigin) override{
-        return calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc, 20);
+        return calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc, 40);
     }
     void updateModel(std::shared_ptr<cardsModel> aCards) override{
         dst::showDstLog("game over : ");
