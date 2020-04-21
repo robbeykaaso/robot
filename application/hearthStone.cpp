@@ -370,7 +370,7 @@ private:
                                                            "org", dst::JArray(st_x, st_y),
                                                            "del", dst::JArray(m_card_place.x + m_card_place.width * 0.5 - st_x, m_card_place.y + m_card_place.height * 0.5 - st_y))));
                     used.insert(card);
-                    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
                     captureScreen();
                     new_gem_count = trainingServer::instance()->recognizeNumber(m_screen(m_gem_loc));
                     dst::showDstLog("myTurn new GemCount : " + QString::number(new_gem_count));
