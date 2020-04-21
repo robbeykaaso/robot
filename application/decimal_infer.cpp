@@ -58,15 +58,20 @@ static const bool tbl[] = {
      << tanh();
 }
 
-void construct_count_11_net(tiny_dnn::network<tiny_dnn::sequential> &nn,
+void construct_count_10_net(tiny_dnn::network<tiny_dnn::sequential> &nn,
                           tiny_dnn::core::backend_t backend_type) {
     using fc = tiny_dnn::layers::fc;
     using conv = tiny_dnn::layers::conv;
     using relu = tiny_dnn::activation::relu;
     using padding = tiny_dnn::padding;
     using softmax = tiny_dnn::softmax_layer;
+    using tiny_dnn::core::connection_table;
 
-    nn << conv(11, 1, 11, 1, 55, 55, padding::valid, true, 1, 1, 1, 1, backend_type)
+    bool cnn_tbl[55 * 55];
+    for (int i = 0; i < 55; ++i)
+        for (int j = 0; j < 55; ++j)
+            cnn_tbl[i * 55 + j] = i == j;
+    nn << conv(11, 1, 11, 1, 55, 55, connection_table(cnn_tbl, 55, 55), padding::valid, true, 1, 1, 1, 1, backend_type)
        << relu()
        << fc(55, 11, true, backend_type)
        << relu()
@@ -80,23 +85,33 @@ void construct_count_34_net(tiny_dnn::network<tiny_dnn::sequential> &nn,
     using relu = tiny_dnn::activation::relu;
     using padding = tiny_dnn::padding;
     using softmax = tiny_dnn::softmax_layer;
+    using tiny_dnn::core::connection_table;
 
-    nn << conv(11, 1, 11, 1, 7, 7, padding::valid, true, 1, 1, 1, 1, backend_type)
+    bool cnn_tbl[49];
+    for (int i = 0; i < 7; ++i)
+        for (int j = 0; j < 7; ++j)
+            cnn_tbl[i * 7 + j] = i == j;
+    nn << conv(11, 1, 11, 1, 7, 7, connection_table(cnn_tbl, 7, 7), padding::valid, true, 1, 1, 1, 1, backend_type)
        << relu()
        << fc(7, 2, true, backend_type)
        << relu()
        << softmax();
 }
 
-void construct_count_8_net(tiny_dnn::network<tiny_dnn::sequential> &nn,
+void construct_count_7_net(tiny_dnn::network<tiny_dnn::sequential> &nn,
                           tiny_dnn::core::backend_t backend_type) {
     using fc = tiny_dnn::layers::fc;
     using conv = tiny_dnn::layers::conv;
     using relu = tiny_dnn::activation::relu;
     using padding = tiny_dnn::padding;
     using softmax = tiny_dnn::softmax_layer;
+    using tiny_dnn::core::connection_table;
 
-    nn << conv(11, 1, 11, 1, 28, 28, padding::valid, true, 1, 1, 1, 1, backend_type)
+    bool cnn_tbl[28 * 28];
+    for (int i = 0; i < 28; ++i)
+        for (int j = 0; j < 28; ++j)
+            cnn_tbl[i * 28 + j] = i == j;
+    nn << conv(11, 1, 11, 1, 28, 28, connection_table(cnn_tbl, 28, 28), padding::valid, true, 1, 1, 1, 1, backend_type)
        << relu()
        << fc(28, 8, true, backend_type)
        << relu()
@@ -318,11 +333,11 @@ tiny_dnn::network<tiny_dnn::sequential> trainingServer::prepareNetwork(const QSt
         auto tp = aName.split("_")[1];
         tp = tp.mid(0, tp.indexOf("-"));
         if (tp == "10")
-            construct_count_11_net(nn, m_backend_type);
+            construct_count_10_net(nn, m_backend_type);
         else if (tp == "34")
             construct_count_34_net(nn, m_backend_type);
         else if (tp == "7")
-            construct_count_8_net(nn, m_backend_type);
+            construct_count_7_net(nn, m_backend_type);
     }
     else
         construct_split_net(nn, m_backend_type);
@@ -424,7 +439,13 @@ void trainingServer::prepareCountTrainData(std::vector<tiny_dnn::label_t>& aTrai
             src_sz += 11;
         }
     }else if (aCount == "7"){
-
+        for (int j = 0; j < 7; ++j)
+            for (int k = 0; k < j + 1; ++k){
+                cv::Rect pos;
+                loadFeaturePos("attendant_pos/" + QString::number(j) + "_" + QString::number(k), pos);
+                poses.push_back(pos);
+                src_sz += 11;
+            }
     }else
         throw "prepareCountTrainData Error";
 
@@ -596,19 +617,15 @@ int trainingServer::recognizeCount(const cv::Mat& aROI){
     return predict(m_split_net, data);
 }
 
-int trainingServer::recognizeCount34(const cv::Mat& aScreen){
+int trainingServer::recognizeCount34(const cv::Mat& aScreen, const cv::Rect feature3_pos[3], const cv::Rect feature4_pos[4]){
     std::vector<cv::Rect> poses;
     int src_sz = 0;
     for (int j = 0; j < 3; ++j){
-        cv::Rect pos;
-        loadFeaturePos("select3_" + QString::number(j), pos);
-        poses.push_back(pos);
+        poses.push_back(feature3_pos[j]);
         src_sz += 11;
     }
     for (int j = 0; j < 4; ++j){
-        cv::Rect pos;
-        loadFeaturePos("select4_" + QString::number(j), pos);
-        poses.push_back(pos);
+        poses.push_back(feature4_pos[j]);
         src_sz += 11;
     }
     int idx = 0;
@@ -620,6 +637,46 @@ int trainingServer::recognizeCount34(const cv::Mat& aScreen){
             src[idx++] = l;
     }
     auto net = get34Net();
+    return predict(net, src);
+}
+
+int trainingServer::recognizeCount10(const cv::Mat& aScreen, const cv::Rect aFeature_pos[10][10]){
+    std::vector<cv::Rect> poses;
+    int src_sz = 0;
+        for (int j = 0; j < 10; ++j)
+            for (int k = 0; k < j + 1; ++k){
+                poses.push_back(aFeature_pos[j][k]);
+                src_sz += 11;
+            }
+    int idx = 0;
+    tiny_dnn::vec_t src(src_sz);
+    for (int j = 0; j < poses.size(); ++j){
+        auto roi = aScreen(poses[j]);
+        auto res = getGemNet().predict(prepareGemImage(roi));
+        for (auto l : res)
+            src[idx++] = l;
+    }
+    auto net = get10Net();
+    return predict(net, src);
+}
+
+int trainingServer::recognizeCount7(const cv::Mat& aScreen, const cv::Rect aFeature_pos[7][7]){
+    std::vector<cv::Rect> poses;
+    int src_sz = 0;
+    for (int j = 0; j < 7; ++j)
+        for (int k = 0; k < j + 1; ++k){
+            poses.push_back(aFeature_pos[j][k]);
+            src_sz += 11;
+        }
+    int idx = 0;
+    tiny_dnn::vec_t src(src_sz);
+    for (int j = 0; j < poses.size(); ++j){
+        auto roi = aScreen(poses[j]);
+        auto res = getGemNet().predict(prepareGemImage(roi));
+        for (auto l : res)
+            src[idx++] = l;
+    }
+    auto net = get7Net();
     return predict(net, src);
 }
 

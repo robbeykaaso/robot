@@ -204,7 +204,7 @@ public:
             m_cards.push_back(std::make_shared<card>(4, 0));
         //cv::imwrite("config_/src.png", aScreen);
 
-        auto idx = trainingServer::instance()->recognizeCount34(aScreen);
+        auto idx = trainingServer::instance()->recognizeCount34(aScreen, m_loc_3, m_loc_4);
         savePredictResult("firstSelect", aOrigin, QString::number(idx));
 
         return 1;

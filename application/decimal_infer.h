@@ -16,7 +16,9 @@ public:
     int predict(tiny_dnn::network<tiny_dnn::sequential>& aNetwork, const tiny_dnn::vec_t& aROI, QJsonArray& aHistogram);
     int recognizeNumber(const cv::Mat& aROI);
     int recognizeCount(const cv::Mat& aROI);
-    int recognizeCount34(const cv::Mat& aScreen);
+    int recognizeCount34(const cv::Mat& aScreen, const cv::Rect aFeature3_pos[3], const cv::Rect aFeature4_pos[4]);
+    int recognizeCount10(const cv::Mat& aScreen, const cv::Rect aFeature_pos[10][10]);
+    int recognizeCount7(const cv::Mat& aScreen, const cv::Rect aFeature_pos[7][7]);
 protected:
     void initialize();
 private:
@@ -62,10 +64,28 @@ private:
         }
         return m_34_net;
     }
+    tiny_dnn::network<tiny_dnn::sequential> get10Net(){
+        if (!m_10_net_loaded){
+            m_10_net.load("Count_10-LeNet-model");
+            m_10_net_loaded = true;
+        }
+        return m_10_net;
+    }
+    tiny_dnn::network<tiny_dnn::sequential> get7Net(){
+        if (!m_7_net_loaded){
+            m_7_net.load("Count_7-LeNet-model");
+            m_7_net_loaded = true;
+        }
+        return m_7_net;
+    }
     tiny_dnn::network<tiny_dnn::sequential> m_gem_net;
     bool m_gem_net_loaded;
     tiny_dnn::network<tiny_dnn::sequential> m_34_net;
     bool m_34_net_loaded;
+    tiny_dnn::network<tiny_dnn::sequential> m_10_net;
+    bool m_10_net_loaded;
+    tiny_dnn::network<tiny_dnn::sequential> m_7_net;
+    bool m_7_net_loaded;
 
     tiny_dnn::network<tiny_dnn::sequential> m_split_net;
     bool m_split_net_loaded;
