@@ -5,6 +5,7 @@
 #include "../framework/document.h"
 #include "../framework/imageModel.h"
 #include "../framework/ImageBoard.h"
+#include <QJsonDocument>
 #include <opencv2/opencv.hpp>
 
 QImage cvMat2QImage(const cv::Mat& mat);
@@ -29,5 +30,8 @@ private:
     int m_tick = 0;
     bool m_go = false;
 };
+
+void loadFeaturePos(const QString& aName, cv::Rect& aPos);
+void loadFeatureImage(const QString& aName, cv::Mat& aFeature);
 
 #endif

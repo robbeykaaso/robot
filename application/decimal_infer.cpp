@@ -1,4 +1,5 @@
 #include "decimal_infer.h"
+#include "brain.h"
 #include "tiny_dnn/util/image.h"
 #include <QDir>
 #include <QJsonDocument>
@@ -55,6 +56,51 @@ static const bool tbl[] = {
      << tanh()
      << fc(120, 11, true, backend_type)  // F6, 120-in, 12-out
      << tanh();
+}
+
+void construct_count_11_net(tiny_dnn::network<tiny_dnn::sequential> &nn,
+                          tiny_dnn::core::backend_t backend_type) {
+    using fc = tiny_dnn::layers::fc;
+    using conv = tiny_dnn::layers::conv;
+    using relu = tiny_dnn::activation::relu;
+    using padding = tiny_dnn::padding;
+    using softmax = tiny_dnn::softmax_layer;
+
+    nn << conv(11, 1, 11, 1, 55, 55, padding::valid, true, 1, 1, 1, 1, backend_type)
+       << relu()
+       << fc(55, 11, true, backend_type)
+       << relu()
+       << softmax();
+}
+
+void construct_count_34_net(tiny_dnn::network<tiny_dnn::sequential> &nn,
+                          tiny_dnn::core::backend_t backend_type) {
+    using fc = tiny_dnn::layers::fc;
+    using conv = tiny_dnn::layers::conv;
+    using relu = tiny_dnn::activation::relu;
+    using padding = tiny_dnn::padding;
+    using softmax = tiny_dnn::softmax_layer;
+
+    nn << conv(11, 1, 11, 1, 7, 7, padding::valid, true, 1, 1, 1, 1, backend_type)
+       << relu()
+       << fc(7, 2, true, backend_type)
+       << relu()
+       << softmax();
+}
+
+void construct_count_8_net(tiny_dnn::network<tiny_dnn::sequential> &nn,
+                          tiny_dnn::core::backend_t backend_type) {
+    using fc = tiny_dnn::layers::fc;
+    using conv = tiny_dnn::layers::conv;
+    using relu = tiny_dnn::activation::relu;
+    using padding = tiny_dnn::padding;
+    using softmax = tiny_dnn::softmax_layer;
+
+    nn << conv(11, 1, 11, 1, 28, 28, padding::valid, true, 1, 1, 1, 1, backend_type)
+       << relu()
+       << fc(28, 8, true, backend_type)
+       << relu()
+       << softmax();
 }
 
 void construct_split_net(tiny_dnn::network<tiny_dnn::sequential> &nn,
@@ -268,6 +314,15 @@ tiny_dnn::network<tiny_dnn::sequential> trainingServer::prepareNetwork(const QSt
         std::cout << "load models..." << std::endl;
     }else if (aName == "Gem-LeNet-model")
         construct_net(nn, m_backend_type);
+    else if (aName.contains("Count")){
+        auto tp = aName.split("_")[1];
+        if (tp == "10")
+            construct_count_11_net(nn, m_backend_type);
+        else if (tp == "34")
+            construct_count_34_net(nn, m_backend_type);
+        else if (tp == "7")
+            construct_count_8_net(nn, m_backend_type);
+    }
     else
         construct_split_net(nn, m_backend_type);
     return nn;
@@ -339,6 +394,65 @@ void trainingServer::prepareTrainData(std::vector<tiny_dnn::label_t>& aTrainLabe
             }
             fl.close();
         }
+}
+
+void trainingServer::prepareCountTrainData(std::vector<tiny_dnn::label_t>& aTrainLabels, std::vector<tiny_dnn::label_t>& aTestLabels,
+                                           std::vector<tiny_dnn::vec_t>& aTrainImages, std::vector<tiny_dnn::vec_t>& aTestImages, const QJsonArray& aLabelList,
+                                           const QString& aRootDirectory, const QStringList& aList, const QString& aCount){
+    int idx0 = 0;
+    for (auto i : aList)
+        if (i != "." && i != ".."){
+            QFile fl(aRootDirectory + "/imageInfo/" + i);
+            fl.open(QFile::ReadOnly);
+            auto cfg = QJsonDocument::fromJson(fl.readAll()).object();
+            auto img_pth = aRootDirectory + "/image/" + cfg.value("id").toString() + "/" + cfg.value("source").toArray()[0].toString();
+            cv::Mat bak = cv::imread(img_pth.toLocal8Bit().toStdString());
+            if (aCount == "10"){
+                tiny_dnn::vec_t src(11 * 55);
+
+                for (int j = 0; j < 10; ++j)
+                    for (int k = 0; k < j + 1; ++k){
+                        cv::Rect pos;
+                        loadFeaturePos("cards_pos/" + QString::number(j) + "_" + QString::number(k), pos);
+                        auto roi = bak(pos);
+                        auto res = getGemNet().predict(prepareGemImage(roi));
+                        for (auto l : res)
+                            src.push_back(l);
+                        aTrainImages.push_back(src);
+                        aTrainLabels.push_back(aLabelList[idx0].toString().toInt());
+                        aTestImages.push_back(src);
+                        aTrainLabels.push_back(aLabelList[idx0++].toString().toInt());
+                    }
+            }else if (aCount == "34"){
+                tiny_dnn::vec_t src(11 * 7);
+
+                for (int j = 0; j < 3; ++j){
+                    cv::Rect pos;
+                    loadFeaturePos("select3_" + QString::number(j), pos);
+                    auto roi = bak(pos);
+                    auto res = getGemNet().predict(prepareGemImage(roi));
+                    for (auto l : res)
+                        src.push_back(l);
+                }
+
+                for (int j = 0; j < 4; ++j){
+                    cv::Rect pos;
+                    loadFeaturePos("select4_" + QString::number(j), pos);
+                    auto roi = bak(pos);
+                    auto res = getGemNet().predict(prepareGemImage(roi));
+                    for (auto l : res)
+                        src.push_back(l);
+                }
+
+                aTrainImages.push_back(src);
+                aTrainLabels.push_back(aLabelList[idx0].toString().toInt());
+                aTestImages.push_back(src);
+                aTrainLabels.push_back(aLabelList[idx0++].toString().toInt());
+            }else if (aCount == "7"){
+
+            }
+        }
+    fillData(aTrainLabels, aTestLabels, aTrainImages, aTestImages);
 }
 
 void trainingServer::prepareGemTrainData(std::vector<tiny_dnn::label_t>& aTrainLabels, std::vector<tiny_dnn::label_t>& aTestLabels,
@@ -468,14 +582,11 @@ int trainingServer::predict(tiny_dnn::network<tiny_dnn::sequential>& aNetwork, c
 
 int trainingServer::recognizeNumber(const cv::Mat& aROI){
     //nn.load("Gem-LeNet-model", tiny_dnn::content_type::weights_and_model, tiny_dnn::file_format::json);
-    if (!m_gem_net_loaded){
-        m_gem_net.load("Gem-LeNet-model");
-        m_gem_net_loaded = true;
-    }
     auto roi = aROI;
     tiny_dnn::vec_t data = prepareGemImage(roi);
     //convert_image(aROI, -1.0, 1.0, 32, 32, data);
-    return predict(m_gem_net, data);
+    auto net = getGemNet();
+    return predict(net, data);
 }
 
 int trainingServer::recognizeCount(const cv::Mat& aROI){
@@ -544,7 +655,11 @@ void trainingServer::initialize(){
 
         std::vector<tiny_dnn::label_t> train_labels, test_labels;
         std::vector<tiny_dnn::vec_t> train_images, test_images;
-        prepareTrainData(train_labels, test_labels, train_images, test_images, m_root, m_anno_list, m_task_name);
+        if (m_task_name.contains("Count"))
+            prepareCountTrainData(train_labels, test_labels, train_images, test_images,
+                                  cfg->value("data").toObject().value("image_label_list").toArray(), m_root, m_anno_list, m_task_name.split("_")[1]);
+        else
+            prepareTrainData(train_labels, test_labels, train_images, test_images, m_root, m_anno_list, m_task_name);
 
         std::vector<tiny_dnn::label_t> test_ret;
         for (int j = 0; j < test_images.size(); ++j){
@@ -581,7 +696,11 @@ void trainingServer::initialize(){
 
         std::vector<tiny_dnn::label_t> train_labels, test_labels;
         std::vector<tiny_dnn::vec_t> train_images, test_images;
-        prepareTrainData(train_labels, test_labels, train_images, test_images, m_root, m_anno_list, m_task_name);
+        if (m_task_name.contains("Count"))
+            prepareCountTrainData(train_labels, test_labels, train_images, test_images,
+                                  cfg->value("data").toObject().value("image_label_list").toArray(), m_root, m_anno_list, m_task_name.split("_")[1]);
+        else
+            prepareTrainData(train_labels, test_labels, train_images, test_images, m_root, m_anno_list, m_task_name);
 
         int sz = fillData(train_labels, test_labels, train_images, test_images);
 
@@ -688,21 +807,25 @@ void trainingServer::initialize(){
             QFile fl(m_root + "/imageInfo/" + i);
             if (fl.open(QFile::ReadOnly)){
                 auto img = QJsonDocument::fromJson(fl.readAll()).object();
-                auto shps = img.value("shapes").toObject();
-                QJsonArray ret_shps;
-                QJsonArray ori_shps;
-                int idx = 0;
-                for (auto j : shps){
-                    ori_shps.push_back(j);
-                    auto shp = j.toObject();
-                    shp.insert("origin_shape_index", idx++);
-                    shp.insert("score", 1.0);
-                    shp.insert("histogram", m_result_histogram[pred_idx]);
-                    shp.insert("label", m_result_list[pred_idx++]);
-                    ret_shps.push_back(shp);
+                if (m_task_name.contains("Count")){
+                    img.insert("predict_label", m_result_list[pred_idx++]);
+                }else{
+                    auto shps = img.value("shapes").toObject();
+                    QJsonArray ret_shps;
+                    QJsonArray ori_shps;
+                    int idx = 0;
+                    for (auto j : shps){
+                        ori_shps.push_back(j);
+                        auto shp = j.toObject();
+                        shp.insert("origin_shape_index", idx++);
+                        shp.insert("score", 1.0);
+                        shp.insert("histogram", m_result_histogram[pred_idx]);
+                        shp.insert("label", m_result_list[pred_idx++]);
+                        ret_shps.push_back(shp);
+                    }
+                    img.insert("shapes", shps);
+                    img.insert("predict_shapes", ret_shps);
                 }
-                img.insert("shapes", shps);
-                img.insert("predict_shapes", ret_shps);
 
                 QFile fl2(dir + "/" + i);
                 if (fl2.open(QFile::WriteOnly)){

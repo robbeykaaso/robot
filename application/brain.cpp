@@ -81,6 +81,26 @@ cv::Mat QImage2cvMat(QImage image)
     return mat;
 }
 
+void loadFeaturePos(const QString& aName, cv::Rect& aPos){
+    QFile fl("config_/hearthStone/" + aName + ".json");
+    if (fl.open(QFile::ReadOnly)){
+        auto rect = QJsonDocument::fromJson(fl.readAll()).array();
+        aPos.x = rect[0].toInt();
+        aPos.y = rect[1].toInt();
+        aPos.width = rect[2].toInt() - rect[0].toInt();
+        aPos.height = rect[3].toInt() - rect[1].toInt();
+        fl.close();
+    }
+}
+
+void loadFeatureImage(const QString& aName, cv::Mat& aFeature){
+    QImage img("config_/hearthStone/" + aName + ".png");
+    if (!img.isNull()){
+        auto cv_img = QImage2cvMat(img);
+        cv::cvtColor(cv_img, aFeature, cv::COLOR_RGB2GRAY);
+    }
+}
+
 void robotBrain::calcScene(const QImage& aImage){
 
 };

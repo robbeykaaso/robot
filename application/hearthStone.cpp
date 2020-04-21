@@ -30,24 +30,6 @@ public:
     virtual double isCurrentScene(const cv::Mat& aScreen, const QImage& aOrigin) = 0;
     virtual void updateModel(std::shared_ptr<cardsModel> aCards) = 0;
     virtual bool calcOperation() { return false;}
-    static void loadFeaturePos(const QString& aName, cv::Rect& aPos){
-        QFile fl("config_/hearthStone/" + aName + ".json");
-        if (fl.open(QFile::ReadOnly)){
-            auto rect = QJsonDocument::fromJson(fl.readAll()).array();
-            aPos.x = rect[0].toInt();
-            aPos.y = rect[1].toInt();
-            aPos.width = rect[2].toInt() - rect[0].toInt();
-            aPos.height = rect[3].toInt() - rect[1].toInt();
-            fl.close();
-        }
-    }
-    static void loadFeatureImage(const QString& aName, cv::Mat& aFeature){
-        QImage img("config_/hearthStone/" + aName + ".png");
-        if (!img.isNull()){
-            auto cv_img = QImage2cvMat(img);
-            cv::cvtColor(cv_img, aFeature, cv::COLOR_RGB2GRAY);
-        }
-    }
 protected:
     double calcFeatureIOU(const cv::Mat& aBackground, const cv::Mat& aFeature, const cv::Rect& aPos, cv::Rect& aRetPos,
                           int aInflate = 5, const cv::Mat& aMask = cv::Mat(),
@@ -102,7 +84,7 @@ public:
     cardsModel(){
         for (int i = 0; i < 10; ++i)
             for (int j = 0; j < i + 1; ++j){
-                scene::loadFeaturePos("cards_pos/" + QString::number(i) + "_" + QString::number(j), m_cards_pos[i][j]);
+                loadFeaturePos("cards_pos/" + QString::number(i) + "_" + QString::number(j), m_cards_pos[i][j]);
             }
     }
     void addCard(std::shared_ptr<card> aCard){

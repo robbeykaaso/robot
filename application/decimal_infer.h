@@ -25,6 +25,9 @@ private:
     void prepareTrainData(std::vector<tiny_dnn::label_t>& aTrainLabels, std::vector<tiny_dnn::label_t>& aTestLabels,
                           std::vector<tiny_dnn::vec_t>& aTrainImages, std::vector<tiny_dnn::vec_t>& aTestImages,
                           const QString& aRootDirectory, const QStringList& aList, const QString& aModelName);
+    void prepareCountTrainData(std::vector<tiny_dnn::label_t>& aTrainLabels, std::vector<tiny_dnn::label_t>& aTestLabels,
+                               std::vector<tiny_dnn::vec_t>& aTrainImages, std::vector<tiny_dnn::vec_t>& aTestImages,
+                               const QJsonArray& aLabelList, const QString& aRootDirectory, const QStringList& aList, const QString& aCount);
     int fillData(std::vector<tiny_dnn::label_t>& aTrainLabels, std::vector<tiny_dnn::label_t>& aTestLabels,
                    std::vector<tiny_dnn::vec_t>& aTrainImages, std::vector<tiny_dnn::vec_t>& aTestImages);
     bool tryPrepareJob(const QJsonObject& aRequest);
@@ -44,6 +47,13 @@ private:
     QStringList m_result_list;
     QVector<QJsonArray> m_result_histogram;
 private:
+    tiny_dnn::network<tiny_dnn::sequential> getGemNet(){
+        if (!m_gem_net_loaded){
+            m_gem_net.load("Gem-LeNet-model");
+            m_gem_net_loaded = true;
+        }
+        return m_gem_net;
+    }
     tiny_dnn::network<tiny_dnn::sequential> m_gem_net;
     bool m_gem_net_loaded;
     tiny_dnn::network<tiny_dnn::sequential> m_split_net;
