@@ -16,6 +16,7 @@ public:
     int predict(tiny_dnn::network<tiny_dnn::sequential>& aNetwork, const tiny_dnn::vec_t& aROI, QJsonArray& aHistogram);
     int recognizeNumber(const cv::Mat& aROI);
     int recognizeCount(const cv::Mat& aROI);
+    int recognizeCount34(const cv::Mat& aScreen);
 protected:
     void initialize();
 private:
@@ -54,8 +55,18 @@ private:
         }
         return m_gem_net;
     }
+    tiny_dnn::network<tiny_dnn::sequential> get34Net(){
+        if (!m_34_net_loaded){
+            m_34_net.load("Count_34-LeNet-model");
+            m_34_net_loaded = true;
+        }
+        return m_34_net;
+    }
     tiny_dnn::network<tiny_dnn::sequential> m_gem_net;
     bool m_gem_net_loaded;
+    tiny_dnn::network<tiny_dnn::sequential> m_34_net;
+    bool m_34_net_loaded;
+
     tiny_dnn::network<tiny_dnn::sequential> m_split_net;
     bool m_split_net_loaded;
 };

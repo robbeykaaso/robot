@@ -316,6 +316,7 @@ tiny_dnn::network<tiny_dnn::sequential> trainingServer::prepareNetwork(const QSt
         construct_net(nn, m_backend_type);
     else if (aName.contains("Count")){
         auto tp = aName.split("_")[1];
+        tp = tp.mid(0, tp.indexOf("-"));
         if (tp == "10")
             construct_count_11_net(nn, m_backend_type);
         else if (tp == "34")
@@ -399,6 +400,34 @@ void trainingServer::prepareTrainData(std::vector<tiny_dnn::label_t>& aTrainLabe
 void trainingServer::prepareCountTrainData(std::vector<tiny_dnn::label_t>& aTrainLabels, std::vector<tiny_dnn::label_t>& aTestLabels,
                                            std::vector<tiny_dnn::vec_t>& aTrainImages, std::vector<tiny_dnn::vec_t>& aTestImages, const QJsonArray& aLabelList,
                                            const QString& aRootDirectory, const QStringList& aList, const QString& aCount){
+    std::vector<cv::Rect> poses;
+    int src_sz = 0;
+    if (aCount == "10"){
+        for (int j = 0; j < 10; ++j)
+            for (int k = 0; k < j + 1; ++k){
+                cv::Rect pos;
+                loadFeaturePos("cards_pos/" + QString::number(j) + "_" + QString::number(k), pos);
+                poses.push_back(pos);
+                src_sz += 11;
+            }
+    }else if (aCount == "34"){
+        for (int j = 0; j < 3; ++j){
+            cv::Rect pos;
+            loadFeaturePos("select3_" + QString::number(j), pos);
+            poses.push_back(pos);
+            src_sz += 11;
+        }
+        for (int j = 0; j < 4; ++j){
+            cv::Rect pos;
+            loadFeaturePos("select4_" + QString::number(j), pos);
+            poses.push_back(pos);
+            src_sz += 11;
+        }
+    }else if (aCount == "7"){
+
+    }else
+        throw "prepareCountTrainData Error";
+
     int idx0 = 0;
     for (auto i : aList)
         if (i != "." && i != ".."){
@@ -407,52 +436,20 @@ void trainingServer::prepareCountTrainData(std::vector<tiny_dnn::label_t>& aTrai
             auto cfg = QJsonDocument::fromJson(fl.readAll()).object();
             auto img_pth = aRootDirectory + "/image/" + cfg.value("id").toString() + "/" + cfg.value("source").toArray()[0].toString();
             cv::Mat bak = cv::imread(img_pth.toLocal8Bit().toStdString());
-            if (aCount == "10"){
-                tiny_dnn::vec_t src(11 * 55);
 
-                for (int j = 0; j < 10; ++j)
-                    for (int k = 0; k < j + 1; ++k){
-                        cv::Rect pos;
-                        loadFeaturePos("cards_pos/" + QString::number(j) + "_" + QString::number(k), pos);
-                        auto roi = bak(pos);
-                        auto res = getGemNet().predict(prepareGemImage(roi));
-                        for (auto l : res)
-                            src.push_back(l);
-                        aTrainImages.push_back(src);
-                        aTrainLabels.push_back(aLabelList[idx0].toString().toInt());
-                        aTestImages.push_back(src);
-                        aTrainLabels.push_back(aLabelList[idx0++].toString().toInt());
-                    }
-            }else if (aCount == "34"){
-                tiny_dnn::vec_t src(11 * 7);
-
-                for (int j = 0; j < 3; ++j){
-                    cv::Rect pos;
-                    loadFeaturePos("select3_" + QString::number(j), pos);
-                    auto roi = bak(pos);
-                    auto res = getGemNet().predict(prepareGemImage(roi));
-                    for (auto l : res)
-                        src.push_back(l);
-                }
-
-                for (int j = 0; j < 4; ++j){
-                    cv::Rect pos;
-                    loadFeaturePos("select4_" + QString::number(j), pos);
-                    auto roi = bak(pos);
-                    auto res = getGemNet().predict(prepareGemImage(roi));
-                    for (auto l : res)
-                        src.push_back(l);
-                }
-
-                aTrainImages.push_back(src);
-                aTrainLabels.push_back(aLabelList[idx0].toString().toInt());
-                aTestImages.push_back(src);
-                aTrainLabels.push_back(aLabelList[idx0++].toString().toInt());
-            }else if (aCount == "7"){
-
+            int idx = 0;
+            tiny_dnn::vec_t src(src_sz);
+            for (int j = 0; j < poses.size(); ++j){
+                auto roi = bak(poses[j]);
+                auto res = getGemNet().predict(prepareGemImage(roi));
+                for (auto l : res)
+                    src[idx++] = l;
             }
+            aTrainImages.push_back(src);
+            aTrainLabels.push_back(aLabelList[idx0][0].toString().toInt());
+            aTestImages.push_back(src);
+            aTestLabels.push_back(aLabelList[idx0++][0].toString().toInt());
         }
-    fillData(aTrainLabels, aTestLabels, aTrainImages, aTestImages);
 }
 
 void trainingServer::prepareGemTrainData(std::vector<tiny_dnn::label_t>& aTrainLabels, std::vector<tiny_dnn::label_t>& aTestLabels,
@@ -597,6 +594,33 @@ int trainingServer::recognizeCount(const cv::Mat& aROI){
     auto roi = aROI;
     tiny_dnn::vec_t data = prepareSplitImage(roi);
     return predict(m_split_net, data);
+}
+
+int trainingServer::recognizeCount34(const cv::Mat& aScreen){
+    std::vector<cv::Rect> poses;
+    int src_sz = 0;
+    for (int j = 0; j < 3; ++j){
+        cv::Rect pos;
+        loadFeaturePos("select3_" + QString::number(j), pos);
+        poses.push_back(pos);
+        src_sz += 11;
+    }
+    for (int j = 0; j < 4; ++j){
+        cv::Rect pos;
+        loadFeaturePos("select4_" + QString::number(j), pos);
+        poses.push_back(pos);
+        src_sz += 11;
+    }
+    int idx = 0;
+    tiny_dnn::vec_t src(src_sz);
+    for (int j = 0; j < poses.size(); ++j){
+        auto roi = aScreen(poses[j]);
+        auto res = getGemNet().predict(prepareGemImage(roi));
+        for (auto l : res)
+            src[idx++] = l;
+    }
+    auto net = get34Net();
+    return predict(net, src);
 }
 
 bool trainingServer::tryPrepareJob(const QJsonObject& aRequest){

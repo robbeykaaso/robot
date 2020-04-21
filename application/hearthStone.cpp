@@ -69,7 +69,7 @@ protected:
         //cv::rectangle(src, minLocation, cv::Point(minLocation.x + m_ready_button.cols, minLocation.y + m_ready_button.rows), cv::Scalar(0,255,0), 2, 8);
         //cv::imshow("匹配后的图像", src);
     }
-    virtual QString savePredictResult(const QString& aDirectory, const QImage& aImage){
+    virtual QString savePredictResult(const QString& aDirectory, const QImage& aImage, const QString& aLabel = ""){
         auto id = dst::configObject::generateObjectID();
         QDir().mkdir("config_/" + aDirectory);
         QDir().mkdir("config_/" + aDirectory + "/" + id);
@@ -204,14 +204,17 @@ public:
             m_cards.push_back(std::make_shared<card>(4, 0));
         //cv::imwrite("config_/src.png", aScreen);
 
-        //savePredictResult("firstSelect", aOrigin);
+        auto idx = trainingServer::instance()->recognizeCount34(aScreen);
+        savePredictResult("firstSelect", aOrigin, QString::number(idx));
 
         return 1;
     }
 protected:
-    QString savePredictResult(const QString& aDirectory, const QImage& aImage) override{
+    QString savePredictResult(const QString& aDirectory, const QImage& aImage, const QString& aLabel = "") override{
         auto ret = scene::savePredictResult(aDirectory, aImage);
         QJsonObject cfg;
+        if (aLabel != "")
+            cfg.insert("labels", dst::Json("custom", aLabel));
         cfg.insert("id", ret);
         cfg.insert("images", dst::JArray(ret + "/0.png"));
         QJsonObject shps;
@@ -296,10 +299,11 @@ private:
     cv::Mat m_screen;
     QImage m_origin;
 private:
-    cv::Rect m_my_count_feature;
-    cv::Rect m_enemy_count_feature;
+    //cv::Rect m_my_count_feature;
+    //cv::Rect m_enemy_count_feature;
+    cv::Rect m_;
     void attackEnemy(){
-        if (m_my_count_feature.width > 0 && m_enemy_count_feature.width > 0){
+        /*if (m_my_count_feature.width > 0 && m_enemy_count_feature.width > 0){
             auto my_cnt = trainingServer::instance()->recognizeCount(m_screen(m_my_count_feature));
             auto enemy_cnt = trainingServer::instance()->recognizeCount(m_screen(m_enemy_count_feature));
 
@@ -327,7 +331,7 @@ private:
                 fl.write(QJsonDocument(cfg).toJson());
                 fl.close();
             }
-        }
+        }*/
     }
 private:
     cv::Mat m_button;
@@ -337,6 +341,7 @@ private:
     cv::Rect m_hero_loc;
     std::shared_ptr<cardsModel> m_cards_model;
     cv::Rect m_card_place;
+    cv::Rect m_attendant_pos[7][7];
 private:
     void captureScreen(){
         QScreen *screen = QGuiApplication::primaryScreen();
@@ -434,8 +439,12 @@ public:
         loadFeaturePos("myTurn", m_loc);
         loadFeaturePos("cardPlace", m_card_place);
 
-        loadFeaturePos("myCountFeature", m_my_count_feature);
-        loadFeaturePos("enemyCountFeature", m_enemy_count_feature);
+        //loadFeaturePos("myCountFeature", m_my_count_feature);
+        //loadFeaturePos("enemyCountFeature", m_enemy_count_feature);
+        for (int i = 0; i < 7; ++i)
+            for (int j = 0; j < i + 1; ++j){
+                loadFeaturePos("attendant_pos/" + QString::number(i) + "_" + QString::number(j), m_attendant_pos[i][j]);
+            }
 
         loadFeaturePos("gemPos", m_gem_loc);
         loadFeaturePos("heroPos", m_hero_loc);
