@@ -78,7 +78,7 @@ void construct_count_10_net(tiny_dnn::network<tiny_dnn::sequential> &nn,
        << softmax();
 }
 
-void construct_count_34_net(tiny_dnn::network<tiny_dnn::sequential> &nn,
+void construct_count__net(tiny_dnn::network<tiny_dnn::sequential> &nn,
                           tiny_dnn::core::backend_t backend_type) {
     using fc = tiny_dnn::layers::fc;
     using conv = tiny_dnn::layers::conv;
@@ -272,7 +272,7 @@ void recognize(const std::string &dictionary, const std::string &src_filename) {
 //第二部分：局部特征相对位置特征提取并拟合，目的将目标通过卷积描述的相对位置特征缩成一点，该点为最终变换原图中的位置，故需要将目标尺寸通过变换缩到5*5或3*3以减少最后一步卷积的计算量；
 //考虑池化，如果池化一次步长太大，那么可能直接导致原图识别关键信息损失，所以采用多步池化
 //第二层：max_pool stride_x:2 stride_y:3 -> 原图：192 * 68 * 6 目标： 11 * 10 * 6
-//第三层：max_pool stride_x:2 stride_y:5 -> 原图：96 * 34 * 6 目标：5 * 5 * 6
+//第三层：max_pool stride_x:2 stride_y:5 -> 原图：96 *  * 6 目标：5 * 5 * 6
 //第四层：卷积核 5 * 5 * 6 -> 92 * 30 目标：1
 //如果追加全连接层转码成坐标位置，由于连接数过大，会导致计算过慢，所以这边输出直接为图上一点
 //输入：一张原图缩小到 384 * 203 的图片，输出：92 * 30的图片，其中某一点为1，表示定位目标位置

@@ -378,6 +378,10 @@ private:
                     if (new_gem_count != gem_count || card->getCost() == 0){
                         m_cards_model->placeCard(card);
                         //std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+                        auto idx = trainingServer::instance()->recognizeCount7(m_screen, m_attendant_pos);
+                        savePredictResult("attendantCount", m_origin, QString::number(idx));
+
                         break;
                     }else
                         dst::showDstLog("card place fail: index " + QString::number(card->getIndex()) + "; cost " + QString::number(card->getCost()));
