@@ -355,7 +355,7 @@ private:
         auto idx = trainingServer::instance()->recognizeCount7(m_screen, aPoses);
         std::vector<cv::Rect> poses; std::vector<int> lbls;
         for (int i = 0; i < idx; ++i){
-            auto pos = aPoses[idx][i];
+            auto pos = aPoses[idx - 1][i];
             poses.push_back(pos);
             lbls.push_back(trainingServer::instance()->recognizeNumber(m_screen(pos)));
             pos.x = pos.x - m_offset_left;
@@ -385,7 +385,7 @@ private:
                                                            "org", dst::JArray(st_x, st_y),
                                                            "del", dst::JArray(m_card_place.x + m_card_place.width * 0.5 - st_x, m_card_place.y + m_card_place.height * 0.5 - st_y))));
                     used.insert(card);
-                    std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+                    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
                     captureScreen();
                     new_gem_count = trainingServer::instance()->recognizeNumber(m_screen(m_gem_loc));
                     dst::showDstLog("myTurn new GemCount : " + QString::number(new_gem_count));
@@ -494,7 +494,7 @@ public:
 
         int card_count = m_cards_model->getCardsCount();
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(4000)); //wait for new supplied card
+        std::this_thread::sleep_for(std::chrono::milliseconds(3000)); //wait for new supplied card
         captureScreen();
 
         if (card_count < 10){

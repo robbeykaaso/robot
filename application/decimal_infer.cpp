@@ -78,7 +78,7 @@ void construct_count_10_net(tiny_dnn::network<tiny_dnn::sequential> &nn,
        << softmax();
 }
 
-void construct_count__net(tiny_dnn::network<tiny_dnn::sequential> &nn,
+void construct_count_34_net(tiny_dnn::network<tiny_dnn::sequential> &nn,
                           tiny_dnn::core::backend_t backend_type) {
     using fc = tiny_dnn::layers::fc;
     using conv = tiny_dnn::layers::conv;
