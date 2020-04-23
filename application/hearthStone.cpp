@@ -341,13 +341,28 @@ private:
     cv::Rect m_hero_loc;
     std::shared_ptr<cardsModel> m_cards_model;
     cv::Rect m_card_place;
-    cv::Rect m_attendant_pos[7][7];
+    cv::Rect m_attendant_pos[7][7], m_enemy_pos[7][7];
+    int m_offset_left = 70;
+    int m_offset_top = 176;
 private:
     void captureScreen(){
         QScreen *screen = QGuiApplication::primaryScreen();
         m_origin = screen->grabWindow(0).toImage();
         m_screen = QImage2cvMat(m_origin);
         cv::cvtColor(m_screen, m_screen, cv::COLOR_RGB2GRAY);
+    }
+    void recognizeAttendants(cv::Rect aPoses[7][7]){
+        auto idx = trainingServer::instance()->recognizeCount7(m_screen, aPoses);
+        std::vector<cv::Rect> poses; std::vector<int> lbls;
+        for (int i = 0; i < idx; ++i){
+            auto pos = aPoses[idx][i];
+            poses.push_back(pos);
+            lbls.push_back(trainingServer::instance()->recognizeNumber(m_screen(pos)));
+            pos.x = pos.x - m_offset_left;
+            poses.push_back(pos);
+            lbls.push_back(trainingServer::instance()->recognizeNumber(m_screen(pos)));
+        }
+        savePredictResult2(poses, lbls, QString::number(idx), "attendantCount");
     }
 private:
     void placeCards(){
@@ -370,7 +385,7 @@ private:
                                                            "org", dst::JArray(st_x, st_y),
                                                            "del", dst::JArray(m_card_place.x + m_card_place.width * 0.5 - st_x, m_card_place.y + m_card_place.height * 0.5 - st_y))));
                     used.insert(card);
-                    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1500));
                     captureScreen();
                     new_gem_count = trainingServer::instance()->recognizeNumber(m_screen(m_gem_loc));
                     dst::showDstLog("myTurn new GemCount : " + QString::number(new_gem_count));
@@ -378,10 +393,8 @@ private:
                     if (new_gem_count != gem_count || card->getCost() == 0){
                         m_cards_model->placeCard(card);
                         //std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-
-                        auto idx = trainingServer::instance()->recognizeCount7(m_screen, m_attendant_pos);
-                        savePredictResult("attendantCount", m_origin, QString::number(idx));
-
+                        recognizeAttendants(m_attendant_pos);
+                        recognizeAttendants(m_enemy_pos);
                         break;
                     }else
                         dst::showDstLog("card place fail: index " + QString::number(card->getIndex()) + "; cost " + QString::number(card->getCost()));
@@ -398,10 +411,12 @@ private:
                                                    "org", dst::JArray(m_hero_loc.x + m_hero_loc.width * 0.5, m_hero_loc.y + m_hero_loc.height * 0.5))))
     }
 private:
-    void savePredictResult2(const std::vector<cv::Rect>& aPoses, const std::vector<int>& aLabels){
-        auto id = savePredictResult("supplyCard", m_origin);
+    void savePredictResult2(const std::vector<cv::Rect>& aPoses, const std::vector<int>& aLabels, const QString& aLabel = "", const QString& aDir = "supplyCard"){
+        auto id = savePredictResult(aDir, m_origin);
         QJsonObject cfg;
         cfg.insert("id", id);
+        if (aLabel != "")
+            cfg.insert("labels", dst::Json("custom", aLabel));
         cfg.insert("images", dst::JArray(id + "/0.png"));
         QJsonObject shps;
         for (int i = 0; i < aPoses.size(); ++i)
@@ -412,7 +427,7 @@ private:
                                                     aPoses[i].x + aPoses[i].width, aPoses[i].y + aPoses[i].height)));
         cfg.insert("shapes", shps);
 
-        QFile fl("config_/supplyCard/" + id + ".json");
+        QFile fl("config_/" + aDir + "/" + id + ".json");
         if (fl.open(QFile::WriteOnly)){
             fl.write(QJsonDocument(cfg).toJson());
             fl.close();
@@ -448,6 +463,8 @@ public:
         for (int i = 0; i < 7; ++i)
             for (int j = 0; j < i + 1; ++j){
                 loadFeaturePos("attendant_pos/" + QString::number(i) + "_" + QString::number(j), m_attendant_pos[i][j]);
+                auto ret = m_attendant_pos[i][j];
+                m_enemy_pos[i][j] = cv::Rect(ret.x, ret.y - m_offset_top, ret.width, ret.height);
             }
 
         loadFeaturePos("gemPos", m_gem_loc);
