@@ -9,7 +9,7 @@ ApplicationWindow {
     visible: true
     width: 200//Screen.desktopAvailableWidth
     x: Screen.desktopAvailableWidth - width
-    height: Screen.desktopAvailableHeight
+    height: Screen.desktopAvailableHeight * 0.4
     //visibility: Window.Maximized
     title: qsTr("deepinspectapp")
     flags: Qt.Window | Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint
@@ -24,11 +24,13 @@ ApplicationWindow {
             if (mainwindow.visibility !== Window.Maximized){
                 mainwindow.flags = Qt.Window | Qt.FramelessWindowHint | Qt.FramelessWindowHint
                 mainwindow.visibility = Window.Maximized
+                mainwindow.opacity = 0.6
             }else{
                 mainwindow.flags = Qt.Window | Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint//Qt.WindowTitleHint
                 mainwindow.width = 200
-                mainwindow.height = Screen.desktopAvailableHeight
+                mainwindow.height = Screen.desktopAvailableHeight * 0.4
                 mainwindow.visibility = Window.Windowed
+                mainwindow.opacity = 1
             }
         })
         UIManager.registerPipe("commandCrop", "mdyGUI", function(aInput){
@@ -65,6 +67,9 @@ ApplicationWindow {
                     push("Default_Application/Log.qml")
                 }
             }, "mdybrain")
+            UIManager.registerPipe("commandQuit", "mdyGUI", function(aInput){
+                Qt.quit()
+            })
         }
         Keys.onPressed: {
             if (event.key !== 16777236 && go){

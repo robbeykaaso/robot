@@ -415,7 +415,7 @@ void trainingServer::prepareTrainData(std::vector<tiny_dnn::label_t>& aTrainLabe
 void trainingServer::prepareCountTrainData(std::vector<tiny_dnn::label_t>& aTrainLabels, std::vector<tiny_dnn::label_t>& aTestLabels,
                                            std::vector<tiny_dnn::vec_t>& aTrainImages, std::vector<tiny_dnn::vec_t>& aTestImages, const QJsonArray& aLabelList,
                                            const QString& aRootDirectory, const QStringList& aList, const QString& aCount){
-    std::vector<cv::Rect> poses;
+    std::vector<cv::Rect> poses, poses2;
     int src_sz = 0;
     if (aCount == "10"){
         for (int j = 0; j < 10; ++j)
@@ -444,6 +444,7 @@ void trainingServer::prepareCountTrainData(std::vector<tiny_dnn::label_t>& aTrai
                 cv::Rect pos;
                 loadFeaturePos("attendant_pos/" + QString::number(j) + "_" + QString::number(k), pos);
                 poses.push_back(pos);
+                poses2.push_back(cv::Rect(pos.x, pos.y - 176, pos.width, pos.height));
                 src_sz += 11;
             }
     }else
@@ -458,18 +459,23 @@ void trainingServer::prepareCountTrainData(std::vector<tiny_dnn::label_t>& aTrai
             auto img_pth = aRootDirectory + "/image/" + cfg.value("id").toString() + "/" + cfg.value("source").toArray()[0].toString();
             cv::Mat bak = cv::imread(img_pth.toLocal8Bit().toStdString());
 
-            int idx = 0;
-            tiny_dnn::vec_t src(src_sz);
-            for (int j = 0; j < poses.size(); ++j){
-                auto roi = bak(poses[j]);
-                auto res = getGemNet().predict(prepareGemImage(roi));
-                for (auto l : res)
-                    src[idx++] = l;
-            }
-            aTrainImages.push_back(src);
-            aTrainLabels.push_back(aLabelList[idx0][0].toString().toInt());
-            aTestImages.push_back(src);
-            aTestLabels.push_back(aLabelList[idx0++][0].toString().toInt());
+            auto reg = [&](std::vector<cv::Rect>& aPoses){
+                int idx = 0;
+                tiny_dnn::vec_t src(src_sz);
+                for (int j = 0; j < aPoses.size(); ++j){
+                    auto roi = bak(aPoses[j]);
+                    auto res = getGemNet().predict(prepareGemImage(roi));
+                    for (auto l : res)
+                        src[idx++] = l;
+                }
+                aTrainImages.push_back(src);
+                aTrainLabels.push_back(aLabelList[idx0][0].toString().toInt());
+                aTestImages.push_back(src);
+                aTestLabels.push_back(aLabelList[idx0++][0].toString().toInt());
+            };
+            reg(poses);
+            if (poses2.size() > 0)
+                reg(poses2);
         }
 }
 
@@ -889,7 +895,10 @@ void trainingServer::initialize(){
             if (fl.open(QFile::ReadOnly)){
                 auto img = QJsonDocument::fromJson(fl.readAll()).object();
                 if (m_task_name.contains("Count")){
-                    img.insert("predict_label", m_result_list[pred_idx++]);
+                    auto lbl = m_result_list[pred_idx++];
+                    if (m_task_name.contains("_7"))
+                        lbl += ";" + m_result_list[pred_idx++];
+                    img.insert("predict_label", lbl);
                 }else{
                     auto shps = img.value("shapes").toObject();
                     QJsonArray ret_shps;
