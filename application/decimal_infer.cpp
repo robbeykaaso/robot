@@ -459,7 +459,7 @@ void trainingServer::prepareCountTrainData(std::vector<tiny_dnn::label_t>& aTrai
             auto img_pth = aRootDirectory + "/image/" + cfg.value("id").toString() + "/" + cfg.value("source").toArray()[0].toString();
             cv::Mat bak = cv::imread(img_pth.toLocal8Bit().toStdString());
 
-            auto reg = [&](std::vector<cv::Rect>& aPoses){
+            auto reg = [&](std::vector<cv::Rect>& aPoses, int aIndex){
                 int idx = 0;
                 tiny_dnn::vec_t src(src_sz);
                 for (int j = 0; j < aPoses.size(); ++j){
@@ -469,13 +469,13 @@ void trainingServer::prepareCountTrainData(std::vector<tiny_dnn::label_t>& aTrai
                         src[idx++] = l;
                 }
                 aTrainImages.push_back(src);
-                aTrainLabels.push_back(aLabelList[idx0][0].toString().toInt());
+                aTrainLabels.push_back(aLabelList[idx0][aIndex].toString().toInt());
                 aTestImages.push_back(src);
-                aTestLabels.push_back(aLabelList[idx0++][0].toString().toInt());
+                aTestLabels.push_back(aLabelList[idx0++][aIndex].toString().toInt());
             };
-            reg(poses);
+            reg(poses, 0);
             if (poses2.size() > 0)
-                reg(poses2);
+                reg(poses2, 1);
         }
 }
 
