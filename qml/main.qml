@@ -7,11 +7,12 @@ import UIManager 1.0
 ApplicationWindow {
     id: mainwindow
     visible: true
-    width: 600//Screen.desktopAvailableWidth
-    height: 300//Screen.desktopAvailableHeight
+    width: 200//Screen.desktopAvailableWidth
+    x: Screen.desktopAvailableWidth - width
+    height: Screen.desktopAvailableHeight
     //visibility: Window.Maximized
     title: qsTr("deepinspectapp")
-    flags: Qt.Window //| Qt.FramelessWindowHint
+    flags: Qt.Window | Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint
     opacity: 0.6
     background: Rectangle{
         anchors.fill: parent
@@ -21,12 +22,12 @@ ApplicationWindow {
     Component.onCompleted: {
         UIManager.registerPipe("setWindowStyle", "mdyGUI", function(aInput){
             if (mainwindow.visibility !== Window.Maximized){
-                mainwindow.flags = Qt.Window | Qt.FramelessWindowHint
+                mainwindow.flags = Qt.Window | Qt.FramelessWindowHint | Qt.FramelessWindowHint
                 mainwindow.visibility = Window.Maximized
             }else{
-                mainwindow.flags = Qt.Window | Qt.WindowTitleHint
-                mainwindow.width = 600
-                mainwindow.height = 300
+                mainwindow.flags = Qt.Window | Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint//Qt.WindowTitleHint
+                mainwindow.width = 200
+                mainwindow.height = Screen.desktopAvailableHeight
                 mainwindow.visibility = Window.Windowed
             }
         })
@@ -52,11 +53,25 @@ ApplicationWindow {
     }*/
 
     StackView{
+        property bool go: false
         id: stackview
         anchors.fill: parent
         initialItem: "Default_Application/Control.qml"
         Component.onCompleted: {
             UIManager.setCommand({signal2: 'initializeBackend', type: 'nullptr'}, null)
+            UIManager.registerPipe("boardKeyPress", "mdyGUI", function(aInput){
+                if (aInput["go"] && !go){
+                    go = true
+                    push("Default_Application/Log.qml")
+                }
+            }, "mdybrain")
+        }
+        Keys.onPressed: {
+            if (event.key !== 16777236 && go){
+                go = false
+                pop()
+                UIManager.setCommand({"signal2": "cropMode", type: "nullptr"}, null)
+            }
         }
     }
 }

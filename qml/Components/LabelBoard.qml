@@ -58,6 +58,10 @@ Rectangle{
                             popup(aInput['x'], aInput['y'])
                     }
                 }, "mdycmd")
+
+                UIManager.registerPipe("cropMode", "mdyGUI", function(aInput){
+                    board.forceActiveFocus()
+                })
             }
         }
     }

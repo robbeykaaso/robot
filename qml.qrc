@@ -17,5 +17,6 @@
         <file>qml/Components/ProgressWindow.qml</file>
         <file>qml/Components/MinSizeEdit.qml</file>
         <file>qml/Components/AttachViewBoard.qml</file>
+        <file>qml/Default_Application/Log.qml</file>
     </qresource>
 </RCC>
