@@ -15,7 +15,7 @@ private:
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
         mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        SetCursorPos(0, 0);
+        SetCursorPos(5, 5);
 
         dst::showDstLog("mouse drag: org: " + QString::number(org.x()) + " " + QString::number(org.y()) +
                         "; del: " + QString::number(del.x()) + " " + QString::number(del.y()));
@@ -26,7 +26,7 @@ private:
         mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
         mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        SetCursorPos(0, 0);
+        SetCursorPos(5, 5);
 
         dst::showDstLog("mouse click: org: " + QString::number(org.x()) + " " + QString::number(org.y()));
     }

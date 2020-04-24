@@ -495,7 +495,7 @@ public:
         captureScreen();
 
         recognizeAttendants(m_attendant_pos, "custom");
-        recognizeAttendants(m_enemy_pos, "enemy");
+        //recognizeAttendants(m_enemy_pos, "enemy");
 
         if (card_count < 10){
             std::vector<int> costs;

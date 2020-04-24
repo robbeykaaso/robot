@@ -6,14 +6,17 @@ import UIManager 1.0
 
 ColumnLayout{
     ListView{
+        id: root
         Layout.fillHeight: true
         Layout.fillWidth: true
         delegate: Text{
+             width: 200
+             height: 30
              text: msg
              font.pixelSize: UIManager.fontTitleSize
-             color: UIManager.fontColor
-             wrapMode: Text.WordWrap
-             width: parent.width
+             color: "red"
+            // wrapMode: Text.WordWrap
+             clip: true
          }
          ScrollBar.vertical: ScrollBar {
              onVisualPositionChanged: function(){
@@ -32,6 +35,7 @@ ColumnLayout{
             Component.onCompleted: {
                 UIManager.registerPipe("addLogRecord", "mdyGUI", function(aInput){
                     append({msg: aInput["log_msg"]})
+                    root.currentIndex = count - 1
                 })
             }
         }

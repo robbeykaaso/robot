@@ -473,7 +473,7 @@ void trainingServer::prepareCountTrainData(std::vector<tiny_dnn::label_t>& aTrai
                 aTestImages.push_back(src);
                 aTestLabels.push_back(aLabelList[idx0++][aIndex].toString().toInt());
             };
-            reg(poses, 0);
+           // reg(poses, 0);
             if (poses2.size() > 0)
                 reg(poses2, 1);
         }
@@ -896,8 +896,8 @@ void trainingServer::initialize(){
                 auto img = QJsonDocument::fromJson(fl.readAll()).object();
                 if (m_task_name.contains("Count")){
                     auto lbl = m_result_list[pred_idx++];
-                    if (m_task_name.contains("_7"))
-                        lbl += ";" + m_result_list[pred_idx++];
+                 //   if (m_task_name.contains("_7"))
+                 //       lbl += ";" + m_result_list[pred_idx++];
                     img.insert("predict_label", lbl);
                 }else{
                     auto shps = img.value("shapes").toObject();

@@ -7,8 +7,8 @@ import UIManager 1.0
 ApplicationWindow {
     id: mainwindow
     visible: true
-    width: 200//Screen.desktopAvailableWidth
-    x: Screen.desktopAvailableWidth - width
+    width: 300//Screen.desktopAvailableWidth
+    x: 0
     height: Screen.desktopAvailableHeight * 0.4
     //visibility: Window.Maximized
     title: qsTr("deepinspectapp")
@@ -27,7 +27,7 @@ ApplicationWindow {
                 mainwindow.opacity = 0.6
             }else{
                 mainwindow.flags = Qt.Window | Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint//Qt.WindowTitleHint
-                mainwindow.width = 200
+                mainwindow.width = 300
                 mainwindow.height = Screen.desktopAvailableHeight * 0.4
                 mainwindow.visibility = Window.Windowed
                 mainwindow.opacity = 1
