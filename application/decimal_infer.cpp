@@ -107,13 +107,45 @@ void construct_count_7_net(tiny_dnn::network<tiny_dnn::sequential> &nn,
     using softmax = tiny_dnn::softmax_layer;
     using tiny_dnn::core::connection_table;
 
-    bool cnn_tbl[28 * 28];
+    #define O true
+    #define X false
+    bool cnn_tbl[] = {
+        O, X, X, X, X, X, X,
+        X, O, X, X, X, X, X,
+        X, O, X, X, X, X, X,
+        X, X, O, X, X, X, X,
+        X, X, O, X, X, X, X,
+        X, X, O, X, X, X, X,
+        X, X, X, O, X, X, X,
+        X, X, X, O, X, X, X,
+        X, X, X, O, X, X, X,
+        X, X, X, O, X, X, X,
+        X, X, X, X, O, X, X,
+        X, X, X, X, O, X, X,
+        X, X, X, X, O, X, X,
+        X, X, X, X, O, X, X,
+        X, X, X, X, O, X, X,
+        X, X, X, X, X, O, X,
+        X, X, X, X, X, O, X,
+        X, X, X, X, X, O, X,
+        X, X, X, X, X, O, X,
+        X, X, X, X, X, O, X,
+        X, X, X, X, X, O, X,
+        X, X, X, X, X, X, O,
+        X, X, X, X, X, X, O,
+        X, X, X, X, X, X, O,
+        X, X, X, X, X, X, O,
+        X, X, X, X, X, X, O,
+        X, X, X, X, X, X, O,
+        X, X, X, X, X, X, O,
+    };
+
     for (int i = 0; i < 28; ++i)
         for (int j = 0; j < 28; ++j)
             cnn_tbl[i * 28 + j] = i == j;
-    nn << conv(11, 1, 11, 1, 28, 28, connection_table(cnn_tbl, 28, 28), padding::valid, true, 1, 1, 1, 1, backend_type)
+    nn << conv(11, 1, 11, 1, 28, 7, connection_table(cnn_tbl, 28, 7), padding::valid, true, 1, 1, 1, 1, backend_type)
        << relu()
-       << fc(28, 8, true, backend_type)
+       << fc(7, 8, true, backend_type)
        << relu()
        << softmax();
 }
