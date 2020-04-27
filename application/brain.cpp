@@ -153,14 +153,16 @@ robotBrain::~robotBrain(){
 
 robotBrain::robotBrain() : configObject(QJsonObject()){
 
-    dst::streamManager::instance()->registerEvent("commandExportLog", "mdybrain", [this](std::shared_ptr<dst::streamData> aInput){
+    auto exportlog = [this](std::shared_ptr<dst::streamData> aInput){
         QFile fl("log.txt");
         if (fl.open(QFile::WriteOnly)){
             fl.write(m_logs.toStdString().data());
             fl.close();
         }
         return aInput;
-    });
+    };
+    dst::streamManager::instance()->registerEvent("commandExportLog", "mdybrain", exportlog);
+    dst::streamManager::instance()->registerEvent("finalizeBackend", "mdybrain", exportlog);
 
     dst::streamManager::instance()->registerEvent("commandClearLog", "mdybrain", [this](std::shared_ptr<dst::streamData> aInput){
         m_logs = "";

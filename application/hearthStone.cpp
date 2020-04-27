@@ -494,7 +494,7 @@ public:
         std::this_thread::sleep_for(std::chrono::milliseconds(3000)); //wait for new supplied card
         captureScreen();
 
-        recognizeAttendants(m_attendant_pos, "custom");
+        //recognizeAttendants(m_attendant_pos, "custom");
         //recognizeAttendants(m_enemy_pos, "enemy");
 
         if (card_count < 10){
