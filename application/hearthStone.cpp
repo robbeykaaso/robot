@@ -299,8 +299,8 @@ private:
     cv::Mat m_screen;
     QImage m_origin;
 private:
-    //cv::Rect m_my_count_feature;
-    //cv::Rect m_enemy_count_feature;
+    cv::Rect m_my_count_feature;
+    cv::Rect m_enemy_count_feature;
     cv::Rect m_;
     void attackEnemy(){
         /*if (m_my_count_feature.width > 0 && m_enemy_count_feature.width > 0){
@@ -455,8 +455,8 @@ public:
         loadFeaturePos("myTurn", m_loc);
         loadFeaturePos("cardPlace", m_card_place);
 
-        //loadFeaturePos("myCountFeature", m_my_count_feature);
-        //loadFeaturePos("enemyCountFeature", m_enemy_count_feature);
+        loadFeaturePos("myCountFeature", m_my_count_feature);
+        loadFeaturePos("enemyCountFeature", m_enemy_count_feature);
         for (int i = 0; i < 7; ++i)
             for (int j = 0; j < i + 1; ++j){
                 loadFeaturePos("attendant_pos/" + QString::number(i) + "_" + QString::number(j), m_attendant_pos[i][j]);

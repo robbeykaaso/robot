@@ -140,9 +140,9 @@ void construct_count_7_net(tiny_dnn::network<tiny_dnn::sequential> &nn,
         X, X, X, X, X, X, O,
     };
 
-    for (int i = 0; i < 28; ++i)
-        for (int j = 0; j < 28; ++j)
-            cnn_tbl[i * 28 + j] = i == j;
+//    for (int i = 0; i < 28; ++i)
+//        for (int j = 0; j < 28; ++j)
+//            cnn_tbl[i * 28 + j] = i == j;
     nn << conv(11, 1, 11, 1, 28, 7, connection_table(cnn_tbl, 28, 7), padding::valid, true, 1, 1, 1, 1, backend_type)
        << relu()
        << fc(7, 8, true, backend_type)
@@ -369,7 +369,8 @@ tiny_dnn::network<tiny_dnn::sequential> trainingServer::prepareNetwork(const QSt
         else if (tp == "34")
             construct_count_34_net(nn, m_backend_type);
         else if (tp == "7")
-            construct_count_7_net(nn, m_backend_type);
+            construct_split_net(nn, m_backend_type);
+            //construct_count_7_net(nn, m_backend_type);
     }
     else
         construct_split_net(nn, m_backend_type);
@@ -394,15 +395,19 @@ tiny_dnn::vec_t trainingServer::prepareGemImage(cv::Mat& aROI){
 }
 
 tiny_dnn::vec_t trainingServer::prepareSplitImage(cv::Mat& aROI){
-    cv::cvtColor(aROI, aROI, cv::COLOR_RGB2GRAY);
+    if (aROI.type() != CV_8UC1)
+        cv::cvtColor(aROI, aROI, cv::COLOR_RGB2GRAY);
     cv::resize(aROI, aROI, cv::Size(512, 100));
     auto bk = (cv::sum(aROI.colRange(511, 512)) + cv::sum(aROI.colRange(0, 1))) / 200.0;
     aROI = abs(aROI - bk);
     //cv::threshold(img, img, 160, 255, cv::THRESH_TRUNC);
-    //cv::imshow("hello", img);
+    //cv::imshow("hello", aROI);
     //img = 255 - img;
-    //cv::imwrite("test2.png", img);
+    //cv::imwrite("test22.png", aROI);
     normalize(aROI, aROI, 0, 1, cv::NORM_MINMAX);
+    //double mn, mx;
+    //int mn_idx, mx_idx;
+    //cv::minMaxIdx(aROI, &mn, &mx, &mn_idx, &mx_idx);
     tiny_dnn::vec_t ret(512);
     for (int i = 0; i < 512; ++i){
         auto tmp = aROI.colRange(i, i + 1);
@@ -471,14 +476,19 @@ void trainingServer::prepareCountTrainData(std::vector<tiny_dnn::label_t>& aTrai
             src_sz += 11;
         }
     }else if (aCount == "7"){
-        for (int j = 0; j < 7; ++j)
+        /*for (int j = 0; j < 7; ++j)
             for (int k = 0; k < j + 1; ++k){
                 cv::Rect pos;
                 loadFeaturePos("attendant_pos/" + QString::number(j) + "_" + QString::number(k), pos);
                 poses.push_back(pos);
                 poses2.push_back(cv::Rect(pos.x, pos.y - 176, pos.width, pos.height));
                 src_sz += 11;
-            }
+            }*/
+        cv::Rect pos;
+        loadFeaturePos("myCountFeature", pos);
+        poses.push_back(pos);
+        loadFeaturePos("enemyCountFeature", pos);
+        poses2.push_back(pos);
     }else
         throw "prepareCountTrainData Error";
 
@@ -503,11 +513,30 @@ void trainingServer::prepareCountTrainData(std::vector<tiny_dnn::label_t>& aTrai
                 aTrainImages.push_back(src);
                 aTrainLabels.push_back(aLabelList[idx0][aIndex].toString().toInt());
                 aTestImages.push_back(src);
-                aTestLabels.push_back(aLabelList[idx0++][aIndex].toString().toInt());
+                aTestLabels.push_back(aLabelList[idx0][aIndex].toString().toInt());
             };
-           // reg(poses, 0);
-            if (poses2.size() > 0)
-                reg(poses2, 1);
+            if (aCount == "7"){
+                auto roi = bak(*poses.begin());
+                auto img = prepareSplitImage(roi);
+                auto lbl = aLabelList[idx0][0].toString().toInt();
+                aTrainImages.push_back(img);
+                aTrainLabels.push_back(lbl);
+                aTestImages.push_back(img);
+                aTestLabels.push_back(lbl);
+
+                roi = bak(*poses2.begin());
+                img = prepareSplitImage(roi);
+                lbl = aLabelList[idx0++][1].toString().toInt();
+                aTrainImages.push_back(img);
+                aTrainLabels.push_back(lbl);
+                aTestImages.push_back(img);
+                aTestLabels.push_back(lbl);
+            }else{
+                reg(poses, 0);
+                if (poses2.size() > 0)
+                    reg(poses2, 1);
+                idx0++;
+            }
         }
 }
 
@@ -928,8 +957,8 @@ void trainingServer::initialize(){
                 auto img = QJsonDocument::fromJson(fl.readAll()).object();
                 if (m_task_name.contains("Count")){
                     auto lbl = m_result_list[pred_idx++];
-                 //   if (m_task_name.contains("_7"))
-                 //       lbl += ";" + m_result_list[pred_idx++];
+                    if (m_task_name.contains("_7"))
+                        lbl += ";" + m_result_list[pred_idx++];
                     img.insert("predict_label", lbl);
                 }else{
                     auto shps = img.value("shapes").toObject();
