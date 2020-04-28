@@ -339,6 +339,7 @@ private:
     cv::Rect m_opt_loc;
     cv::Rect m_gem_loc;
     cv::Rect m_hero_loc;
+    cv::Rect m_enemy_hero_loc;
     std::shared_ptr<cardsModel> m_cards_model;
     cv::Rect m_card_place;
     cv::Rect m_attendant_pos[7][7], m_enemy_pos[7][7];
@@ -362,6 +363,14 @@ private:
             poses.push_back(pos);
             lbls.push_back(trainingServer::instance()->recognizeNumber(m_screen(pos)));
         }
+
+        if (m_enemy_hero_loc.width > 0 && m_enemy_hero_loc.height > 0)
+            for (auto i : poses){
+                auto st_x = i.x + i.width * 0.5, st_y = i.y + i.height * 0.5;
+                TRIG("controlWorld", STMJSON(dst::Json("type", "drag",
+                                                       "org", dst::JArray(st_x, st_y),
+                                                       "del", dst::JArray(m_enemy_hero_loc.x + m_enemy_hero_loc.width * 0.5 - st_x, m_enemy_hero_loc.y + m_enemy_hero_loc.height * 0.5 - st_y))));
+            }
 
         auto idx2 = trainingServer::instance()->recognizeCount7(m_screen, m_enemy_count_feature);
         for (int i = 0; i < idx; ++i){
@@ -476,6 +485,7 @@ public:
 
         loadFeaturePos("gemPos", m_gem_loc);
         loadFeaturePos("heroPos", m_hero_loc);
+        loadFeaturePos("enemyHeroPos", m_enemy_hero_loc);
     }
     double isCurrentScene(const cv::Mat &aScreen, const QImage& aOrigin) override{
         auto ret = calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc);
