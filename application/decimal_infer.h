@@ -18,7 +18,7 @@ public:
     int recognizeCount(const cv::Mat& aROI);
     int recognizeCount34(const cv::Mat& aScreen, const cv::Rect aFeature3_pos[3], const cv::Rect aFeature4_pos[4]);
     int recognizeCount10(const cv::Mat& aScreen, const cv::Rect aFeature_pos[10][10]);
-    int recognizeCount7(const cv::Mat& aScreen, const cv::Rect aFeature_pos[7][7]);
+    int recognizeCount7(const cv::Mat& aScreen, const cv::Rect aFeature_pos);
 protected:
     void initialize();
 private:
@@ -29,10 +29,13 @@ private:
                           std::vector<tiny_dnn::vec_t>& aTrainImages, std::vector<tiny_dnn::vec_t>& aTestImages,
                           const QString& aRootDirectory, const QStringList& aList, const QString& aModelName);
     void prepareCountTrainData(std::vector<tiny_dnn::label_t>& aTrainLabels, std::vector<tiny_dnn::label_t>& aTestLabels,
+                               std::vector<tiny_dnn::vec_t>& aTrainLabels2, std::vector<tiny_dnn::vec_t>& aTestLabels2,
                                std::vector<tiny_dnn::vec_t>& aTrainImages, std::vector<tiny_dnn::vec_t>& aTestImages,
                                const QJsonArray& aLabelList, const QString& aRootDirectory, const QStringList& aList, const QString& aCount);
     int fillData(std::vector<tiny_dnn::label_t>& aTrainLabels, std::vector<tiny_dnn::label_t>& aTestLabels,
                    std::vector<tiny_dnn::vec_t>& aTrainImages, std::vector<tiny_dnn::vec_t>& aTestImages);
+    int fillData(std::vector<tiny_dnn::vec_t>& aTrainLabels, std::vector<tiny_dnn::vec_t>& aTestLabels,
+                 std::vector<tiny_dnn::vec_t>& aTrainImages, std::vector<tiny_dnn::vec_t>& aTestImages);
     bool tryPrepareJob(const QJsonObject& aRequest);
     tiny_dnn::vec_t prepareGemImage(cv::Mat& aROI);
     tiny_dnn::vec_t prepareSplitImage(cv::Mat& aROI);

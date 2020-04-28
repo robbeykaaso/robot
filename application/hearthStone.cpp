@@ -351,18 +351,28 @@ private:
         m_screen = QImage2cvMat(m_origin);
         cv::cvtColor(m_screen, m_screen, cv::COLOR_RGB2GRAY);
     }
-    void recognizeAttendants(cv::Rect aPoses[7][7], const QString& aGroup){
-        auto idx = trainingServer::instance()->recognizeCount7(m_screen, aPoses);
+    void recognizeAttendants(){
+        auto idx = trainingServer::instance()->recognizeCount7(m_screen, m_my_count_feature);
         std::vector<cv::Rect> poses; std::vector<int> lbls;
         for (int i = 0; i < idx; ++i){
-            auto pos = aPoses[idx - 1][i];
+            auto pos = m_attendant_pos[idx - 1][i];
             poses.push_back(pos);
             lbls.push_back(trainingServer::instance()->recognizeNumber(m_screen(pos)));
             pos.x = pos.x - m_offset_left;
             poses.push_back(pos);
             lbls.push_back(trainingServer::instance()->recognizeNumber(m_screen(pos)));
         }
-        savePredictResult2(poses, lbls, dst::Json(aGroup, QString::number(idx)), "attendantCount");
+
+        auto idx2 = trainingServer::instance()->recognizeCount7(m_screen, m_enemy_count_feature);
+        for (int i = 0; i < idx; ++i){
+            auto pos = m_enemy_pos[idx - 1][i];
+            poses.push_back(pos);
+            lbls.push_back(trainingServer::instance()->recognizeNumber(m_screen(pos)));
+            pos.x = pos.x - m_offset_left;
+            poses.push_back(pos);
+            lbls.push_back(trainingServer::instance()->recognizeNumber(m_screen(pos)));
+        }
+        savePredictResult2(poses, lbls, dst::Json("custom", QString::number(idx), "enemy", QString::number(idx2)), "attendantCount");
     }
 private:
     void placeCards(){
@@ -494,8 +504,7 @@ public:
         std::this_thread::sleep_for(std::chrono::milliseconds(3000)); //wait for new supplied card
         captureScreen();
 
-        //recognizeAttendants(m_attendant_pos, "custom");
-        //recognizeAttendants(m_enemy_pos, "enemy");
+        recognizeAttendants();
 
         if (card_count < 10){
             std::vector<int> costs;

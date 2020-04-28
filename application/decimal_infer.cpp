@@ -158,8 +158,9 @@ void construct_split_net(tiny_dnn::network<tiny_dnn::sequential> &nn,
     using relu = tiny_dnn::activation::relu;
     using padding = tiny_dnn::padding;
     using softmax = tiny_dnn::softmax_layer;
+    using tanh = tiny_dnn::activation::tanh;
 
-    nn << conv(512, 1, 2, 1, 1, 2, padding::same, true, 1, 1, 1, 1) //C1, 1@512*1-in, 2@512*1-out
+    /*nn << conv(512, 1, 2, 1, 1, 2, padding::same, true, 1, 1, 1, 1) //C1, 1@512*1-in, 2@512*1-out
        << relu()
        << max_pool(512, 1, 2, 2, 2, false) //S2, 2@512*1-in, 2@256*1-out
        << conv(256, 1, 4, 1, 2, 4, padding::same, true, 1, 1, 1, 1) //C3, 2@256*1-in, 4@256*1-out
@@ -174,6 +175,24 @@ void construct_split_net(tiny_dnn::network<tiny_dnn::sequential> &nn,
        << conv(4, 1, 4, 1, 16, 32, padding::valid, true, 1, 1, 1, 1) //C7, 16@4*1-in, 32@1*1-out
        << relu()
        << fc(32, 8, true) //F8, 16-in, 8-out
+       << relu()
+       << softmax();*/
+    nn << fc(1, 10)
+       << tanh()
+       << fc(10, 10)
+       << tanh()
+       << fc(10, 1);
+}
+
+void construct_isnumber_net(tiny_dnn::network<tiny_dnn::sequential> &nn,
+                          tiny_dnn::core::backend_t backend_type) {
+    using fc = tiny_dnn::layers::fc;
+    using relu = tiny_dnn::activation::relu;
+    using softmax = tiny_dnn::softmax_layer;
+
+    nn << fc(11, 66, true)
+       << relu()
+       << fc(66, 2, true)
        << relu()
        << softmax();
 }
@@ -369,6 +388,7 @@ tiny_dnn::network<tiny_dnn::sequential> trainingServer::prepareNetwork(const QSt
         else if (tp == "34")
             construct_count_34_net(nn, m_backend_type);
         else if (tp == "7")
+            //construct_isnumber_net(nn, m_backend_type);
             construct_split_net(nn, m_backend_type);
             //construct_count_7_net(nn, m_backend_type);
     }
@@ -399,21 +419,24 @@ tiny_dnn::vec_t trainingServer::prepareSplitImage(cv::Mat& aROI){
         cv::cvtColor(aROI, aROI, cv::COLOR_RGB2GRAY);
     cv::resize(aROI, aROI, cv::Size(512, 100));
     auto bk = (cv::sum(aROI.colRange(511, 512)) + cv::sum(aROI.colRange(0, 1))) / 200.0;
-    aROI = abs(aROI - bk);
+    aROI = abs(aROI - bk) / bk;
     //cv::threshold(img, img, 160, 255, cv::THRESH_TRUNC);
     //cv::imshow("hello", aROI);
     //img = 255 - img;
     //cv::imwrite("test22.png", aROI);
-    normalize(aROI, aROI, 0, 1, cv::NORM_MINMAX);
+    //normalize(aROI, aROI, 0, 1, cv::NORM_MINMAX);
     //double mn, mx;
     //int mn_idx, mx_idx;
     //cv::minMaxIdx(aROI, &mn, &mx, &mn_idx, &mx_idx);
-    tiny_dnn::vec_t ret(512);
+    tiny_dnn::vec_t ret(1);
+    int cnt = 0;
     for (int i = 0; i < 512; ++i){
         auto tmp = aROI.colRange(i, i + 1);
         auto test = cv::sum(tmp);
-        ret[i] = (test.val[0]) / float_t(100);
+        if ((test.val[0]) / float_t(100) > 0.001)
+            cnt++;
     }
+    ret[0] = cnt / 512.0;
     return ret;
 }
 
@@ -450,6 +473,7 @@ void trainingServer::prepareTrainData(std::vector<tiny_dnn::label_t>& aTrainLabe
 }
 
 void trainingServer::prepareCountTrainData(std::vector<tiny_dnn::label_t>& aTrainLabels, std::vector<tiny_dnn::label_t>& aTestLabels,
+                                           std::vector<tiny_dnn::vec_t>& aTrainLabels2, std::vector<tiny_dnn::vec_t>& aTestLabels2,
                                            std::vector<tiny_dnn::vec_t>& aTrainImages, std::vector<tiny_dnn::vec_t>& aTestImages, const QJsonArray& aLabelList,
                                            const QString& aRootDirectory, const QStringList& aList, const QString& aCount){
     std::vector<cv::Rect> poses, poses2;
@@ -489,6 +513,16 @@ void trainingServer::prepareCountTrainData(std::vector<tiny_dnn::label_t>& aTrai
         poses.push_back(pos);
         loadFeaturePos("enemyCountFeature", pos);
         poses2.push_back(pos);
+        /*for (int j = 0; j < 6; ++j){
+            cv::Rect pos;
+            loadFeaturePos("attendant_pos/5_" + QString::number(j), pos);
+            poses.push_back(pos);
+        }
+        for (int j = 0; j < 7; ++j){
+            cv::Rect pos;
+            loadFeaturePos("attendant_pos/6_" + QString::number(j), pos);
+            poses2.push_back(pos);
+        }*/
     }else
         throw "prepareCountTrainData Error";
 
@@ -515,22 +549,69 @@ void trainingServer::prepareCountTrainData(std::vector<tiny_dnn::label_t>& aTrai
                 aTestImages.push_back(src);
                 aTestLabels.push_back(aLabelList[idx0][aIndex].toString().toInt());
             };
+
+            auto reg2 = [&](int aIndex){
+                std::vector<cv::Rect> actposes;
+                auto lbl = aLabelList[idx0][aIndex].toString().toInt();
+                QSet<int> valid;
+                if (lbl % 2 == 0){
+                    if (lbl == 2){
+                        valid.insert(2); valid.insert(3);
+                    }else if (lbl == 4){
+                        valid.insert(1); valid.insert(2); valid.insert(3); valid.insert(4);
+                    }else if (lbl == 6){
+                        valid.insert(0); valid.insert(1); valid.insert(2); valid.insert(3); valid.insert(4); valid.insert(5);
+                    }
+                    actposes = poses;
+                }else{
+                    if (lbl == 1){
+                        valid.insert(3);
+                    }else if (lbl == 3){
+                        valid.insert(2); valid.insert(3); valid.insert(4);
+                    }else if (lbl == 5){
+                        valid.insert(1); valid.insert(2); valid.insert(3); valid.insert(4); valid.insert(5);
+                    }else{
+                        valid.insert(0); valid.insert(1); valid.insert(2); valid.insert(3); valid.insert(4); valid.insert(5); valid.insert(6);
+                    }
+                    actposes = poses2;
+                }
+                for (int j = 0; j < actposes.size(); ++j){
+                    tiny_dnn::vec_t src(11);
+                    auto roi = bak(actposes[j]);
+                    auto res = getGemNet().predict(prepareGemImage(roi));
+                    int idx = 0;
+                    for (auto l : res)
+                        src[idx++] = l;
+                    aTrainImages.push_back(src);
+                    aTrainLabels.push_back(valid.contains(j) ? 0 : 1);
+                    aTestImages.push_back(src);
+                    aTestLabels.push_back(valid.contains(j) ? 0 : 1);
+                }
+            };
+
             if (aCount == "7"){
                 auto roi = bak(*poses.begin());
                 auto img = prepareSplitImage(roi);
                 auto lbl = aLabelList[idx0][0].toString().toInt();
+                tiny_dnn::vec_t lbl2(1);
+                lbl2[0] = (lbl / 7.0);
                 aTrainImages.push_back(img);
-                aTrainLabels.push_back(lbl);
+                aTrainLabels2.push_back(lbl2);
                 aTestImages.push_back(img);
-                aTestLabels.push_back(lbl);
+                aTestLabels2.push_back(lbl2);
 
                 roi = bak(*poses2.begin());
                 img = prepareSplitImage(roi);
-                lbl = aLabelList[idx0++][1].toString().toInt();
+                lbl = aLabelList[idx0][1].toString().toInt();
+                lbl2[0] = (lbl / 7.0);
                 aTrainImages.push_back(img);
-                aTrainLabels.push_back(lbl);
+                aTrainLabels2.push_back(lbl2);
                 aTestImages.push_back(img);
-                aTestLabels.push_back(lbl);
+                aTestLabels2.push_back(lbl2);
+                idx0++;
+                /*reg2(0);
+                reg2(1);
+                idx0++;*/
             }else{
                 reg(poses, 0);
                 if (poses2.size() > 0)
@@ -547,6 +628,23 @@ void trainingServer::prepareGemTrainData(std::vector<tiny_dnn::label_t>& aTrainL
     QDir dir(rel_dir);
     prepareTrainData(aTrainLabels, aTestLabels, aTrainImages, aTestImages, "config_/hearthStone", dir.entryList(), "Gem");
     fillData(aTrainLabels, aTestLabels, aTrainImages, aTestImages);
+}
+
+int trainingServer::fillData(std::vector<tiny_dnn::vec_t>& aTrainLabels, std::vector<tiny_dnn::vec_t>& aTestLabels,
+                             std::vector<tiny_dnn::vec_t>& aTrainImages, std::vector<tiny_dnn::vec_t>& aTestImages){
+    int sz = aTrainImages.size();
+    srand( (unsigned)time(NULL));
+    for (int i = sz; i < 45000; ++i){
+        auto idx = std::rand() % sz;
+        aTrainLabels.push_back(aTrainLabels.at(idx));
+        aTrainImages.push_back(aTrainImages.at(idx));
+    }
+    for (int i = sz; i < 15000; ++i){
+        auto idx = std::rand() % sz;
+        aTestLabels.push_back(aTrainLabels.at(idx));
+        aTestImages.push_back(aTrainImages.at(idx));
+    }
+    return sz;
 }
 
 int trainingServer::fillData(std::vector<tiny_dnn::label_t>& aTrainLabels, std::vector<tiny_dnn::label_t>& aTestLabels,
@@ -650,7 +748,10 @@ int trainingServer::predict(tiny_dnn::network<tiny_dnn::sequential>& aNetwork, c
         scores.emplace_back(res[i], i);
         //scores.emplace_back(rescale<tiny_dnn::tanh_layer>(res[i]), i);
     sort(scores.begin(), scores.end(), std::greater<std::pair<double, int>>());
-    return scores[0].second;
+    if (m_task_name.contains("Count_7"))
+        return std::round(scores[0].first * 7);
+    else
+        return scores[0].second;
 }
 
 int trainingServer::predict(tiny_dnn::network<tiny_dnn::sequential>& aNetwork, const tiny_dnn::vec_t& aROI, QJsonArray& aHistogram){
@@ -662,7 +763,10 @@ int trainingServer::predict(tiny_dnn::network<tiny_dnn::sequential>& aNetwork, c
     }
     //scores.emplace_back(rescale<tiny_dnn::tanh_layer>(res[i]), i);
     sort(scores.begin(), scores.end(), std::greater<std::pair<double, int>>());
-    return scores[0].second;
+    if (m_task_name.contains("Count_7"))
+        return std::round(scores[0].first * 7);
+    else
+        return scores[0].second;
 }
 
 int trainingServer::recognizeNumber(const cv::Mat& aROI){
@@ -727,24 +831,10 @@ int trainingServer::recognizeCount10(const cv::Mat& aScreen, const cv::Rect aFea
     return predict(net, src);
 }
 
-int trainingServer::recognizeCount7(const cv::Mat& aScreen, const cv::Rect aFeature_pos[7][7]){
-    std::vector<cv::Rect> poses;
-    int src_sz = 0;
-    for (int j = 0; j < 7; ++j)
-        for (int k = 0; k < j + 1; ++k){
-            poses.push_back(aFeature_pos[j][k]);
-            src_sz += 11;
-        }
-    int idx = 0;
-    tiny_dnn::vec_t src(src_sz);
-    for (int j = 0; j < poses.size(); ++j){
-        auto roi = aScreen(poses[j]);
-        auto res = getGemNet().predict(prepareGemImage(roi));
-        for (auto l : res)
-            src[idx++] = l;
-    }
+int trainingServer::recognizeCount7(const cv::Mat& aScreen, const cv::Rect aFeature_pos){
+    auto roi = aScreen(aFeature_pos);
     auto net = get7Net();
-    return predict(net, src);
+    return predict(net, prepareSplitImage(roi));
 }
 
 bool trainingServer::tryPrepareJob(const QJsonObject& aRequest){
@@ -802,9 +892,10 @@ void trainingServer::initialize(){
         auto nn = prepareNetwork(m_task_name + "-LeNet-model", "models/" + cfg->value("model_id").toString() + "/");
 
         std::vector<tiny_dnn::label_t> train_labels, test_labels;
+        std::vector<tiny_dnn::vec_t> train_labels2, test_labels2;
         std::vector<tiny_dnn::vec_t> train_images, test_images;
         if (m_task_name.contains("Count"))
-            prepareCountTrainData(train_labels, test_labels, train_images, test_images,
+            prepareCountTrainData(train_labels, test_labels, train_labels2, test_labels2, train_images, test_images,
                                   cfg->value("data").toObject().value("image_label_list").toArray(), m_root, m_anno_list, m_task_name.split("_")[1]);
         else
             prepareTrainData(train_labels, test_labels, train_images, test_images, m_root, m_anno_list, m_task_name);
@@ -843,14 +934,17 @@ void trainingServer::initialize(){
                                  "log_msg", "prepare training data")));
 
         std::vector<tiny_dnn::label_t> train_labels, test_labels;
+        std::vector<tiny_dnn::vec_t> train_labels2, test_labels2;
         std::vector<tiny_dnn::vec_t> train_images, test_images;
-        if (m_task_name.contains("Count"))
-            prepareCountTrainData(train_labels, test_labels, train_images, test_images,
+        int sz = 0;
+        if (m_task_name.contains("Count")){
+            prepareCountTrainData(train_labels, test_labels, train_labels2, test_labels2, train_images, test_images,
                                   cfg->value("data").toObject().value("image_label_list").toArray(), m_root, m_anno_list, m_task_name.split("_")[1]);
-        else
+            sz = fillData(train_labels2, test_labels2, train_images, test_images);
+        }else{
             prepareTrainData(train_labels, test_labels, train_images, test_images, m_root, m_anno_list, m_task_name);
-
-        int sz = fillData(train_labels, test_labels, train_images, test_images);
+            sz = fillData(train_labels, test_labels, train_images, test_images);
+        }
 
         TRIG("sendToClient", STMJSON(dst::Json(
                                  "type", "task_log",
@@ -872,17 +966,24 @@ void trainingServer::initialize(){
             std::cout << "Epoch " << epoch << "/" << m_train_epochs << " finished. "
                       << t.elapsed() << "s elapsed." << std::endl;
             ++epoch;
-            tiny_dnn::result res = nn.test(test_images, test_labels);
-            std::cout << res.num_success << "/" << res.num_total << std::endl;
+            if (!m_task_name.contains("Count_7")){
+                tiny_dnn::result res = nn.test(test_images, test_labels);
+                std::cout << res.num_success << "/" << res.num_total << std::endl;
+            }
 
             disp.restart(train_images.size());
             t.restart();
         };
 
         auto on_enumerate_minibatch = [&]() { disp += m_minibatch; };
-        nn.train<tiny_dnn::mse>(optimizer, train_images, train_labels, m_minibatch,
-                                m_train_epochs, on_enumerate_minibatch,
-                                on_enumerate_epoch);
+        if (m_task_name.contains("Count_7"))
+            nn.fit<tiny_dnn::mse>(optimizer, train_images, train_labels2, m_minibatch,
+                                    m_train_epochs, on_enumerate_minibatch,
+                                    on_enumerate_epoch);
+        else
+            nn.train<tiny_dnn::mse>(optimizer, train_images, train_labels, m_minibatch,
+                                              m_train_epochs, on_enumerate_minibatch,
+                                              on_enumerate_epoch);
         std::cout << "end training." << std::endl;
 
         //auto ret = nn.test(test_images, test_labels);
@@ -957,8 +1058,10 @@ void trainingServer::initialize(){
                 auto img = QJsonDocument::fromJson(fl.readAll()).object();
                 if (m_task_name.contains("Count")){
                     auto lbl = m_result_list[pred_idx++];
-                    if (m_task_name.contains("_7"))
+                    if (m_task_name.contains("_7")){
                         lbl += ";" + m_result_list[pred_idx++];
+                        //lbl = "";
+                    }
                     img.insert("predict_label", lbl);
                 }else{
                     auto shps = img.value("shapes").toObject();
