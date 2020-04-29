@@ -10,7 +10,7 @@ ColumnLayout{
         Layout.fillHeight: true
         Layout.fillWidth: true
         delegate: Text{
-             width: 200
+             width: 240
              height: 30
              text: msg
              font.pixelSize: UIManager.fontTitleSize

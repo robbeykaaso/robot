@@ -4,7 +4,7 @@
 
 TestServer::TestServer(QObject *parent) : QObject(parent)
 {
-    socket_.listen(QHostAddress::LocalHost, 8082);
+    socket_.listen(QHostAddress::LocalHost, 8081);
     connect(&socket_,SIGNAL(newConnection()),this,SLOT(NewConnect()));
 
     dst::streamManager::instance()->registerEvent("sendToClient", "mdysev", [this](std::shared_ptr<dst::streamData> aInput){

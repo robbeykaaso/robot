@@ -5,6 +5,12 @@
 #include <QDir>
 #include <QScreen>
 #include <opencv2/opencv.hpp>
+//服务器连接失败
+//zero attack
+//combine saved picture
+//某种原因的震动，位置错误，识别gemcount失败
+//神经网络优化：扩展组合种类
+//神经网络容量上限？
 
 class card{
 public:
@@ -115,16 +121,12 @@ public:
     void resetModel(){
         for (auto i : m_cards)
             i.clear();
-        m_gem_count = 0;
         m_cards_count = 0;
         TRIG("resetGame", STMJSON(QJsonObject()))
     }
     std::set<std::shared_ptr<card>>* getCards(int aCost) {return &m_cards[aCost];}
-    void setGemCount(int aCount) { m_gem_count = aCount;}
-    int getGemCount() {return m_gem_count;}
 private:
     int m_cards_count = 0;
-    int m_gem_count = 0;
     std::set<std::shared_ptr<card>> m_cards[11];
     cv::Rect m_cards_pos[10][10];
 };
@@ -395,13 +397,14 @@ private:
             }
 
         auto idx2 = dorecog(m_enemy_count_feature, m_enemy_pos);
-        dst::showDstLog("myTurn enemyAttendants : " + QString::number(idx));
+        dst::showDstLog("myTurn enemyAttendants : " + QString::number(idx2));
 
         savePredictResult2(poses, lbls, dst::Json("custom", QString::number(idx), "enemy", QString::number(idx2)), "attendantCount");
     }
 private:
     void placeCards(){
-        int gem_count = m_cards_model->getGemCount();
+        int gem_count = trainingServer::instance()->recognizeNumber(m_screen(m_gem_loc));
+        savePredictResult2(m_gem_loc, QString::number(gem_count));
         std::set<std::shared_ptr<card>> used;
         int i = - 1;
         do{
@@ -556,7 +559,6 @@ public:
 
             savePredictResult2(poses, costs);
         }
-        aCards->setGemCount(std::min(10, aCards->getGemCount() + 1));
     }
     bool calcOperation() override{
         //attackEnemy();
