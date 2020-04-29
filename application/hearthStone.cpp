@@ -352,35 +352,51 @@ private:
         m_screen = QImage2cvMat(m_origin);
         cv::cvtColor(m_screen, m_screen, cv::COLOR_RGB2GRAY);
     }
-    void recognizeAttendants(){
-        auto idx = trainingServer::instance()->recognizeCount7(m_screen, m_my_count_feature);
-        std::vector<cv::Rect> poses; std::vector<int> lbls;
-        for (int i = 0; i < idx; ++i){
-            auto pos = m_attendant_pos[idx - 1][i];
-            poses.push_back(pos);
-            lbls.push_back(trainingServer::instance()->recognizeNumber(m_screen(pos)));
-            pos.x = pos.x - m_offset_left;
-            poses.push_back(pos);
-            lbls.push_back(trainingServer::instance()->recognizeNumber(m_screen(pos)));
+
+    std::vector<int> getAttendantFeatureIndex(int aIndex){
+        std::vector<int> ret;
+        switch (aIndex) {
+            case 1: ret.push_back(3); break;
+            case 2: ret.push_back(2); ret.push_back(3); break;
+            case 3: ret.push_back(2); ret.push_back(3); ret.push_back(4); break;
+            case 4: ret.push_back(1); ret.push_back(2); ret.push_back(3); ret.push_back(4); break;
+            case 5: ret.push_back(1); ret.push_back(2); ret.push_back(3); ret.push_back(4); ret.push_back(5); break;
+            case 6: ret.push_back(0); ret.push_back(1); ret.push_back(2); ret.push_back(3); ret.push_back(4); ret.push_back(5); break;
+            case 7: ret.push_back(0); ret.push_back(1); ret.push_back(2); ret.push_back(3); ret.push_back(4); ret.push_back(5); ret.push_back(6); break;
         }
+        return ret;
+    }
+
+    void recognizeAttendants(){
+        std::vector<cv::Rect> poses; std::vector<int> lbls;
+        auto dorecog = [&](const cv::Rect& aFeaturePos, cv::Rect aAttendantPoses[7][7]){
+            auto idx = trainingServer::instance()->recognizeCount7(m_screen, aFeaturePos);
+            auto idxes = getAttendantFeatureIndex(idx);
+            auto m = idx % 2 == 0 ? 5 : 6;
+            for (auto i : idxes){
+                auto pos = aAttendantPoses[m][i];
+                poses.push_back(pos);
+                lbls.push_back(trainingServer::instance()->recognizeNumber(m_screen(pos)));
+                pos.x = pos.x - m_offset_left;
+                poses.push_back(pos);
+                lbls.push_back(trainingServer::instance()->recognizeNumber(m_screen(pos)));
+            }
+            return idx;
+        };
+        auto idx = dorecog(m_my_count_feature, m_attendant_pos);
+        dst::showDstLog("myTurn myAttendants : " + QString::number(idx));
 
         if (m_enemy_hero_loc.width > 0 && m_enemy_hero_loc.height > 0)
-            for (auto i : poses){
-                auto st_x = i.x + i.width * 0.5, st_y = i.y + i.height * 0.5;
+            for (int i = 0; i < poses.size(); i += 2){
+                auto st_x = poses[i].x + poses[i].width * 0.5, st_y = poses[i].y + poses[i].height * 0.5;
                 TRIG("controlWorld", STMJSON(dst::Json("type", "drag",
                                                        "org", dst::JArray(st_x, st_y),
                                                        "del", dst::JArray(m_enemy_hero_loc.x + m_enemy_hero_loc.width * 0.5 - st_x, m_enemy_hero_loc.y + m_enemy_hero_loc.height * 0.5 - st_y))));
             }
 
-        auto idx2 = trainingServer::instance()->recognizeCount7(m_screen, m_enemy_count_feature);
-        for (int i = 0; i < idx; ++i){
-            auto pos = m_enemy_pos[idx - 1][i];
-            poses.push_back(pos);
-            lbls.push_back(trainingServer::instance()->recognizeNumber(m_screen(pos)));
-            pos.x = pos.x - m_offset_left;
-            poses.push_back(pos);
-            lbls.push_back(trainingServer::instance()->recognizeNumber(m_screen(pos)));
-        }
+        auto idx2 = dorecog(m_enemy_count_feature, m_enemy_pos);
+        dst::showDstLog("myTurn enemyAttendants : " + QString::number(idx));
+
         savePredictResult2(poses, lbls, dst::Json("custom", QString::number(idx), "enemy", QString::number(idx2)), "attendantCount");
     }
 private:
@@ -476,7 +492,7 @@ public:
 
         loadFeaturePos("myCountFeature", m_my_count_feature);
         loadFeaturePos("enemyCountFeature", m_enemy_count_feature);
-        for (int i = 0; i < 7; ++i)
+        for (int i = 5; i < 7; ++i)
             for (int j = 0; j < i + 1; ++j){
                 loadFeaturePos("attendant_pos/" + QString::number(i) + "_" + QString::number(j), m_attendant_pos[i][j]);
                 auto ret = m_attendant_pos[i][j];
@@ -486,6 +502,14 @@ public:
         loadFeaturePos("gemPos", m_gem_loc);
         loadFeaturePos("heroPos", m_hero_loc);
         loadFeaturePos("enemyHeroPos", m_enemy_hero_loc);
+
+        dst::streamManager::instance()->registerEvent("unitTest", "mdyHearthStone", [this](std::shared_ptr<dst::streamData> aInput){
+            m_origin = QImage("D:/build-deepinspection-Desktop_Qt_5_12_2_MSVC2015_64bit-Default/deepinspectstorage2/image/1587957022-85CE431D-0DA4-4596-BD94-8E4BF235B3A9/0.png");
+            m_screen = QImage2cvMat(m_origin);
+            cv::cvtColor(m_screen, m_screen, cv::COLOR_RGB2GRAY);
+            recognizeAttendants();
+            return aInput;
+        });
     }
     double isCurrentScene(const cv::Mat &aScreen, const QImage& aOrigin) override{
         auto ret = calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc);

@@ -192,6 +192,7 @@ robotBrain::robotBrain() : configObject(QJsonObject()){
     dst::streamManager::instance()->registerEvent("boardKeyPress", "mdybrain",  [this](std::shared_ptr<dst::streamData> aInput){
         auto cfg = reinterpret_cast<dst::imageObject::streamImage*>(aInput.get())->getData();
         if (cfg->value("key") == 16777236){
+            //TRIG("unitTest", STMJSON(QJsonObject()));
             m_go = true;
             aInput = STMJSON(dst::Json("go", true));
             //TRIG("controlWorld", STMJSON(dst::Json("type", "drag",

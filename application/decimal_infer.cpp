@@ -834,7 +834,8 @@ int trainingServer::recognizeCount10(const cv::Mat& aScreen, const cv::Rect aFea
 int trainingServer::recognizeCount7(const cv::Mat& aScreen, const cv::Rect aFeature_pos){
     auto roi = aScreen(aFeature_pos);
     auto net = get7Net();
-    return predict(net, prepareSplitImage(roi));
+    auto res = net.predict(prepareSplitImage(roi));
+    return std::round(res[0] * 7);
 }
 
 bool trainingServer::tryPrepareJob(const QJsonObject& aRequest){
