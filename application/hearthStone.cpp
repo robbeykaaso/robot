@@ -327,10 +327,18 @@ private:
     void debounceCaptureScreen(){
         captureScreen();
         do{
-            auto fst = m_screen(m_gem_loc);
+            auto fst = m_screen(cv::Rect(m_gem_loc.x, m_gem_loc.y, m_gem_loc.width, m_gem_loc.height)).clone();
             captureScreen();
-            if (!memcmp(fst.data, m_screen(m_gem_loc).data, fst.total() * fst.elemSize()))
+            cv::Rect tar;
+            auto ret = calcFeatureIOU(m_screen, fst, m_gem_loc, tar);
+            //auto snd = m_screen(cv::Rect(m_gem_loc.x + 50, m_gem_loc.y, m_gem_loc.width, m_gem_loc.height)).clone();
+            //auto diff = fst - snd;
+            //auto ret = memcmp(fst.data, m_screen(m_gem_loc).data, fst.total() * fst.elemSize());
+            //auto ret = cv::countNonZero(diff);
+            if (ret == 1.0) //https://blog.csdn.net/lcgwust/article/details/70837586
                 break;
+            //fst = snd;
+            dst::showDstLog("gem shaking : " + QString::number(ret));
         }while(1);  //to avoid the shaking of the screen image
     }
 
