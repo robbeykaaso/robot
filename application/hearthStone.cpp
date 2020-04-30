@@ -382,6 +382,33 @@ private:
         dst::Json(aImageLabels, "custom", QString::number(idx), "enemy", QString::number(idx2));
     }
 
+    int recognizeCardCount(){
+        auto ret = - 1;
+        for (int i = 9; i >= 0; --i){
+            bool isret = true;
+            for (int j = 0; j <= i; ++j){
+                int cnt = 0;
+                auto roi = m_screen(m_cards_model->getCardPos(i, j));
+                for(int l = 0; l < roi.rows; l++){
+                   // auto p = roi.ptr<uchar>(l);
+                   for(int m = 0; m < roi.cols; m++){
+                       if (roi.at<uchar>(l, m) == 255)
+                           cnt++;
+                   }
+                }
+                if (cnt < 100){
+                    isret = false;
+                    break;
+                }
+            }
+            if (isret){
+                ret = i + 1;
+                break;
+            }
+        }
+        return ret;
+    }
+
     void supplyCard(std::vector<cv::Rect>& aPoses, std::vector<int>& aLabels){
         int card_count = m_cards_model->getCardsCount();
         if (card_count < 10){
@@ -413,6 +440,7 @@ private:
         QJsonObject img_lbls;
 
         recognizeAttendants(poses, lbls, img_lbls);
+        img_lbls.insert("card", QString::number(recognizeCardCount()));
         supplyCard(poses, lbls);
         int gem_count = recognizeGemCount(poses, lbls, img_lbls);
 
@@ -499,11 +527,12 @@ public:
         loadFeaturePos("heroPos", m_hero_loc);
         loadFeaturePos("enemyHeroPos", m_enemy_hero_loc);
 
-        /*dst::streamManager::instance()->registerEvent("unitTest", "mdyHearthStone", [this](std::shared_ptr<dst::streamData> aInput){
-            m_origin = QImage("D:/build-deepinspection-Desktop_Qt_5_12_2_MSVC2015_64bit-Default/deepinspectstorage2/image/1587957022-85CE431D-0DA4-4596-BD94-8E4BF235B3A9/0.png");
+       /* dst::streamManager::instance()->registerEvent("unitTest", "mdyHearthStone", [this](std::shared_ptr<dst::streamData> aInput){
+            m_origin = QImage("D:/build-deepinspection-Desktop_Qt_5_12_2_MSVC2015_64bit-Default/deepinspectstorage2/image/1587957025-55CC3B51-0D40-4931-9FD9-A4DBEAB49CF6/0.png");
             m_screen = QImage2cvMat(m_origin);
             cv::cvtColor(m_screen, m_screen, cv::COLOR_RGB2GRAY);
-            recognizeAttendants();
+            m_cards_model = std::make_shared<cardsModel>();
+            auto test = recognizeCardCount();
             return aInput;
         });*/
     }
