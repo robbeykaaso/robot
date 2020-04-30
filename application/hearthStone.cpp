@@ -5,10 +5,10 @@
 #include <QDir>
 #include <QScreen>
 #include <opencv2/opencv.hpp>
-//服务器连接失败
-//zero attack
-//combine saved picture
-//某种原因的震动，位置错误，识别gemcount失败
+
+//->zero attack
+//->combine saved picture
+//->某种原因的震动，位置错误，识别gemcount失败
 //神经网络优化：扩展组合种类
 //神经网络容量上限？
 
@@ -304,37 +304,6 @@ private:
     cv::Rect m_my_count_feature;
     cv::Rect m_enemy_count_feature;
     cv::Rect m_;
-    void attackEnemy(){
-        /*if (m_my_count_feature.width > 0 && m_enemy_count_feature.width > 0){
-            auto my_cnt = trainingServer::instance()->recognizeCount(m_screen(m_my_count_feature));
-            auto enemy_cnt = trainingServer::instance()->recognizeCount(m_screen(m_enemy_count_feature));
-
-            auto id = savePredictResult("attendentCount", m_origin);
-            QJsonObject cfg;
-            cfg.insert("id", id);
-            cfg.insert("images", dst::JArray(id + "/0.png"));
-            QJsonObject shps;
-            shps.insert(dst::configObject::generateObjectID(),
-                        dst::Json("label", QString::number(my_cnt),
-                                  "type", "rectangle",
-                                  "points", dst::JArray(m_my_count_feature.x, m_my_count_feature.y,
-                                                        m_my_count_feature.x + m_my_count_feature.width,
-                                                        m_my_count_feature.y + m_my_count_feature.height)));
-            shps.insert(dst::configObject::generateObjectID(),
-                        dst::Json("label", QString::number(enemy_cnt),
-                                  "type", "rectangle",
-                                  "points", dst::JArray(m_enemy_count_feature.x, m_enemy_count_feature.y,
-                                                        m_enemy_count_feature.x + m_enemy_count_feature.width,
-                                                        m_enemy_count_feature.y + m_enemy_count_feature.height)));
-            cfg.insert("shapes", shps);
-
-            QFile fl("config_/attendentCount/" + id + ".json");
-            if (fl.open(QFile::WriteOnly)){
-                fl.write(QJsonDocument(cfg).toJson());
-                fl.close();
-            }
-        }*/
-    }
 private:
     cv::Mat m_button;
     cv::Rect m_loc;
@@ -355,6 +324,16 @@ private:
         cv::cvtColor(m_screen, m_screen, cv::COLOR_RGB2GRAY);
     }
 
+    void debounceCaptureScreen(){
+        captureScreen();
+        do{
+            auto fst = m_screen(m_gem_loc);
+            captureScreen();
+            if (!memcmp(fst.data, m_screen(m_gem_loc).data, fst.total() * fst.elemSize()))
+                break;
+        }while(1);  //to avoid the shaking of the screen image
+    }
+
     std::vector<int> getAttendantFeatureIndex(int aIndex){
         std::vector<int> ret;
         switch (aIndex) {
@@ -369,19 +348,18 @@ private:
         return ret;
     }
 
-    void recognizeAttendants(){
-        std::vector<cv::Rect> poses; std::vector<int> lbls;
+    void recognizeAttendants(std::vector<cv::Rect>& aPoses, std::vector<int>& aLabels, QJsonObject& aImageLabels){
         auto dorecog = [&](const cv::Rect& aFeaturePos, cv::Rect aAttendantPoses[7][7]){
             auto idx = trainingServer::instance()->recognizeCount7(m_screen, aFeaturePos);
             auto idxes = getAttendantFeatureIndex(idx);
             auto m = idx % 2 == 0 ? 5 : 6;
             for (auto i : idxes){
                 auto pos = aAttendantPoses[m][i];
-                poses.push_back(pos);
-                lbls.push_back(trainingServer::instance()->recognizeNumber(m_screen(pos)));
+                aPoses.push_back(pos);
+                aLabels.push_back(trainingServer::instance()->recognizeNumber(m_screen(pos)));
                 pos.x = pos.x - m_offset_left;
-                poses.push_back(pos);
-                lbls.push_back(trainingServer::instance()->recognizeNumber(m_screen(pos)));
+                aPoses.push_back(pos);
+                aLabels.push_back(trainingServer::instance()->recognizeNumber(m_screen(pos)));
             }
             return idx;
         };
@@ -389,26 +367,58 @@ private:
         dst::showDstLog("myTurn myAttendants : " + QString::number(idx));
 
         if (m_enemy_hero_loc.width > 0 && m_enemy_hero_loc.height > 0)
-            for (int i = 0; i < poses.size(); i += 2){
-                auto st_x = poses[i].x + poses[i].width * 0.5, st_y = poses[i].y + poses[i].height * 0.5;
-                TRIG("controlWorld", STMJSON(dst::Json("type", "drag",
-                                                       "org", dst::JArray(st_x, st_y),
-                                                       "del", dst::JArray(m_enemy_hero_loc.x + m_enemy_hero_loc.width * 0.5 - st_x, m_enemy_hero_loc.y + m_enemy_hero_loc.height * 0.5 - st_y))));
+            for (int i = 0; i < aPoses.size(); i += 2){
+                auto st_x = aPoses[i].x + aPoses[i].width * 0.5, st_y = aPoses[i].y + aPoses[i].height * 0.5;
+                if (aLabels[i + 1] > 0)
+                    TRIG("controlWorld", STMJSON(dst::Json("type", "drag",
+                                                           "org", dst::JArray(st_x, st_y),
+                                                           "del", dst::JArray(m_enemy_hero_loc.x + m_enemy_hero_loc.width * 0.5 - st_x,
+                                                                                  m_enemy_hero_loc.y + m_enemy_hero_loc.height * 0.5 - st_y))));
             }
 
         auto idx2 = dorecog(m_enemy_count_feature, m_enemy_pos);
         dst::showDstLog("myTurn enemyAttendants : " + QString::number(idx2));
 
-        savePredictResult2(poses, lbls, dst::Json("custom", QString::number(idx), "enemy", QString::number(idx2)), "attendantCount");
+        dst::Json(aImageLabels, "custom", QString::number(idx), "enemy", QString::number(idx2));
+    }
+
+    void supplyCard(std::vector<cv::Rect>& aPoses, std::vector<int>& aLabels){
+        int card_count = m_cards_model->getCardsCount();
+        if (card_count < 10){
+            int cost;
+            cv::Rect pos;
+            for (int i = 0; i <= card_count; ++i){
+                auto pos = m_cards_model->getCardPos(m_cards_model->getCardsCount(), i);
+                auto roi = m_screen(pos);
+                cost = trainingServer::instance()->recognizeNumber(roi);
+                aLabels.push_back(cost);
+                aPoses.push_back(pos);
+            }
+            m_cards_model->supplyCard(std::make_shared<card>(card_count, cost));
+        }
+    }
+
+    int recognizeGemCount(std::vector<cv::Rect>& aPoses, std::vector<int>& aLabels, const QJsonObject& aImageLabels = QJsonObject()){
+        int gem_count = trainingServer::instance()->recognizeNumber(m_screen(m_gem_loc));
+        dst::showDstLog("myTurn GemCount : " + QString::number(gem_count));
+        aPoses.push_back(m_gem_loc);
+        aLabels.push_back(gem_count);
+        savePredictResult2(aPoses, aLabels, aImageLabels, "myTurn");
+        return gem_count;
     }
 private:
-    void placeCards(){
-        int gem_count = trainingServer::instance()->recognizeNumber(m_screen(m_gem_loc));
-        savePredictResult2(m_gem_loc, QString::number(gem_count));
+    void play(){
+        std::vector<int> lbls;
+        std::vector<cv::Rect> poses;
+        QJsonObject img_lbls;
+
+        recognizeAttendants(poses, lbls, img_lbls);
+        supplyCard(poses, lbls);
+        int gem_count = recognizeGemCount(poses, lbls, img_lbls);
+
         std::set<std::shared_ptr<card>> used;
         int i = - 1;
         do{
-            dst::showDstLog("myTurn GemCount : " + QString::number(gem_count));
             auto higher_cost = std::min(gem_count, 10);
             i = higher_cost;
             auto new_gem_count = gem_count;
@@ -424,10 +434,11 @@ private:
                                                            "del", dst::JArray(m_card_place.x + m_card_place.width * 0.5 - st_x, m_card_place.y + m_card_place.height * 0.5 - st_y))));
                     used.insert(card);
                     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-                    captureScreen();
-                    new_gem_count = trainingServer::instance()->recognizeNumber(m_screen(m_gem_loc));
-                    dst::showDstLog("myTurn new GemCount : " + QString::number(new_gem_count));
-                    savePredictResult2(m_gem_loc, QString::number(new_gem_count));
+                    debounceCaptureScreen();
+
+                    poses.clear();lbls.clear();
+                    new_gem_count = recognizeGemCount(poses, lbls);
+
                     if (new_gem_count != gem_count || card->getCost() == 0){
                         m_cards_model->placeCard(card);
                         break;
@@ -468,24 +479,6 @@ private:
             fl.close();
         }
     }
-    void savePredictResult2(const cv::Rect& aPos, const QString& aLabel){
-        auto id = savePredictResult("supplyCard", m_origin);
-        QJsonObject cfg;
-        cfg.insert("id", id);
-        cfg.insert("images", dst::JArray(id + "/0.png"));
-        QJsonObject shps;
-        shps.insert(dst::configObject::generateObjectID(),
-                    dst::Json("label", aLabel,
-                              "type", "rectangle",
-                              "points", dst::JArray(aPos.x, aPos.y, aPos.x + aPos.width, aPos.y + aPos.height)));
-        cfg.insert("shapes", shps);
-
-        QFile fl("config_/supplyCard/" + id + ".json");
-        if (fl.open(QFile::WriteOnly)){
-            fl.write(QJsonDocument(cfg).toJson());
-            fl.close();
-        }
-    }
 public:
     int m_tick = 0;
     myTurnScene() : scene(){
@@ -506,13 +499,13 @@ public:
         loadFeaturePos("heroPos", m_hero_loc);
         loadFeaturePos("enemyHeroPos", m_enemy_hero_loc);
 
-        dst::streamManager::instance()->registerEvent("unitTest", "mdyHearthStone", [this](std::shared_ptr<dst::streamData> aInput){
+        /*dst::streamManager::instance()->registerEvent("unitTest", "mdyHearthStone", [this](std::shared_ptr<dst::streamData> aInput){
             m_origin = QImage("D:/build-deepinspection-Desktop_Qt_5_12_2_MSVC2015_64bit-Default/deepinspectstorage2/image/1587957022-85CE431D-0DA4-4596-BD94-8E4BF235B3A9/0.png");
             m_screen = QImage2cvMat(m_origin);
             cv::cvtColor(m_screen, m_screen, cv::COLOR_RGB2GRAY);
             recognizeAttendants();
             return aInput;
-        });
+        });*/
     }
     double isCurrentScene(const cv::Mat &aScreen, const QImage& aOrigin) override{
         auto ret = calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc);
@@ -533,40 +526,15 @@ public:
     }
     void updateModel(std::shared_ptr<cardsModel> aCards) override{
         dst::showDstLog("myTurn : ");
-
         m_cards_model = aCards;
-
-        int card_count = m_cards_model->getCardsCount();
-
         std::this_thread::sleep_for(std::chrono::milliseconds(3000)); //wait for new supplied card
-        captureScreen();
-
-        recognizeAttendants();
-
-        if (card_count < 10){
-            std::vector<int> costs;
-            std::vector<cv::Rect> poses;
-            int cost;
-            cv::Rect pos;
-            for (int i = 0; i <= card_count; ++i){
-                auto pos = m_cards_model->getCardPos(m_cards_model->getCardsCount(), i);
-                auto roi = m_screen(pos);
-                cost = trainingServer::instance()->recognizeNumber(roi);
-                costs.push_back(cost);
-                poses.push_back(pos);
-            }
-            m_cards_model->supplyCard(std::make_shared<card>(card_count, cost));
-
-            savePredictResult2(poses, costs);
-        }
+        debounceCaptureScreen();
     }
     bool calcOperation() override{
-        //attackEnemy();
-        placeCards();
+        play();
        // dst::showDstLog("before : ");
         TRIG("controlWorld", STMJSON(dst::Json("type", "click", "org", dst::JArray(m_opt_loc.x + m_opt_loc.width * 0.5, m_opt_loc.y + m_opt_loc.height * 0.5))));
        // dst::showDstLog("after : ");
-       // std::this_thread::sleep_for(std::chrono::milliseconds(1000));
         return true;
     }
 };
