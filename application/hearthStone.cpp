@@ -7,10 +7,9 @@
 #include <opencv2/opencv.hpp>
 
 //->zero attack
-//->combine saved picture
-//->某种原因的震动，位置错误，识别gemcount失败
 //神经网络优化：扩展组合种类
 //神经网络容量上限？
+//神经网络优化：训练好的网络以模块形式直接用于其他任务
 
 class card{
 public:
@@ -119,8 +118,10 @@ public:
             }
     }
     void resetModel(){
-        for (auto i : m_cards)
-            i.clear();
+        //for (auto i : m_cards)
+        //    i.clear();
+        for (int i = 0; i < 11; ++i)
+            m_cards[i].clear();
         m_cards_count = 0;
         TRIG("resetGame", STMJSON(QJsonObject()))
     }
@@ -324,10 +325,12 @@ private:
         cv::cvtColor(m_screen, m_screen, cv::COLOR_RGB2GRAY);
     }
 
-    void debounceCaptureScreen(){
+    bool debounceCaptureScreen(){
         captureScreen();
+        int cnt = 0;
         do{
             auto fst = m_screen(cv::Rect(m_gem_loc.x, m_gem_loc.y, m_gem_loc.width, m_gem_loc.height)).clone();
+            //std::this_thread::sleep_for(std::chrono::milliseconds(50));
             captureScreen();
             cv::Rect tar;
             auto ret = calcFeatureIOU(m_screen, fst, m_gem_loc, tar);
@@ -335,11 +338,13 @@ private:
             //auto diff = fst - snd;
             //auto ret = memcmp(fst.data, m_screen(m_gem_loc).data, fst.total() * fst.elemSize());
             //auto ret = cv::countNonZero(diff);
-            if (ret == 1.0) //https://blog.csdn.net/lcgwust/article/details/70837586
-                break;
+            if (ret == 1.0){ //https://blog.csdn.net/lcgwust/article/details/70837586
+                return true;
+            }
             //fst = snd;
             dst::showDstLog("gem shaking : " + QString::number(ret));
-        }while(1);  //to avoid the shaking of the screen image
+        }while(++cnt > 10);  //to avoid the shaking of the screen image
+        return false;  //perhaps the game is over
     }
 
     std::vector<int> getAttendantFeatureIndex(int aIndex){
@@ -470,7 +475,8 @@ private:
                                                            "del", dst::JArray(m_card_place.x + m_card_place.width * 0.5 - st_x, m_card_place.y + m_card_place.height * 0.5 - st_y))));
                     used.insert(card);
                     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-                    debounceCaptureScreen();
+                    if (!debounceCaptureScreen())
+                        return;
 
                     poses.clear();lbls.clear();
                     new_gem_count = recognizeGemCount(poses, lbls);
@@ -564,7 +570,7 @@ public:
     void updateModel(std::shared_ptr<cardsModel> aCards) override{
         dst::showDstLog("myTurn : ");
         m_cards_model = aCards;
-        std::this_thread::sleep_for(std::chrono::milliseconds(3000)); //wait for new supplied card
+        std::this_thread::sleep_for(std::chrono::milliseconds(3000)); //wait for new supplied card, need optimization
         debounceCaptureScreen();
     }
     bool calcOperation() override{
