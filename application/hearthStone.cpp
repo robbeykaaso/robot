@@ -6,6 +6,7 @@
 #include <QScreen>
 #include <opencv2/opencv.hpp>
 
+//first select概率性失败
 //->zero attack
 //神经网络优化：扩展组合种类
 //神经网络容量上限？
@@ -96,6 +97,7 @@ public:
         dst::showDstLog("card add: index " + QString::number(aCard->getIndex()) + "; cost " + QString::number(aCard->getCost()));
         m_cards[aCard->getCost()].insert(aCard);
         ++m_cards_count;
+        ++m_add_times;
     }
     int getCardsCount() {return m_cards_count;}
     cv::Rect getCardPos(int aSum, int aIndex){
@@ -118,18 +120,19 @@ public:
             }
     }
     void resetModel(){
-        //for (auto i : m_cards)
-        //    i.clear();
         for (int i = 0; i < 11; ++i)
             m_cards[i].clear();
         m_cards_count = 0;
+        m_add_times = 0;
         TRIG("resetGame", STMJSON(QJsonObject()))
     }
+    int getAddTimes() {return m_add_times;}
     std::set<std::shared_ptr<card>>* getCards(int aCost) {return &m_cards[aCost];}
 private:
     int m_cards_count = 0;
     std::set<std::shared_ptr<card>> m_cards[11];
     cv::Rect m_cards_pos[10][10];
+    int m_add_times = 0;
 };
 
 class readyScene : public scene{
@@ -330,7 +333,6 @@ private:
         int cnt = 0;
         do{
             auto fst = m_screen(cv::Rect(m_gem_loc.x, m_gem_loc.y, m_gem_loc.width, m_gem_loc.height)).clone();
-            //std::this_thread::sleep_for(std::chrono::milliseconds(50));
             captureScreen();
             cv::Rect tar;
             auto ret = calcFeatureIOU(m_screen, fst, m_gem_loc, tar);
@@ -343,7 +345,8 @@ private:
             }
             //fst = snd;
             dst::showDstLog("gem shaking : " + QString::number(ret));
-        }while(++cnt > 10);  //to avoid the shaking of the screen image
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }while(++cnt < 10);  //to avoid the shaking of the screen image
         return false;  //perhaps the game is over
     }
 
@@ -570,7 +573,10 @@ public:
     void updateModel(std::shared_ptr<cardsModel> aCards) override{
         dst::showDstLog("myTurn : ");
         m_cards_model = aCards;
-        std::this_thread::sleep_for(std::chrono::milliseconds(3000)); //wait for new supplied card, need optimization
+        if (m_cards_model->getAddTimes() == 3)
+            std::this_thread::sleep_for(std::chrono::milliseconds(4000)); //wait for new supplied card, need optimization
+        else
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
         debounceCaptureScreen();
     }
     bool calcOperation() override{
