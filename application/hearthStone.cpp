@@ -7,7 +7,8 @@
 #include <opencv2/opencv.hpp>
 
 //first select概率性失败
-//->zero attack
+//gameOver识别优化
+//识别手牌数优化
 //神经网络优化：扩展组合种类
 //神经网络容量上限？
 //神经网络优化：训练好的网络以模块形式直接用于其他任务
@@ -65,10 +66,17 @@ protected:
         cv::Point matchLocation;
         minMaxLoc(ret, &minValue, &maxValue, &minLocation, &maxLocation, cv::Mat());
 
+      /*  if (minLocation.x == aInflate && minLocation.y == aInflate){
+            aRetPos = cv::Rect(minLocation.x - aInflate + aPos.x, minLocation.y - aInflate + aPos.y, aPos.width, aPos.height);
+            return 1;
+        }
+        else
+            return 0;*/
+
         if ((aMask.cols == 0 && minValue < 0.05) ||
             (aMask.cols > 0 && maxValue > 0.999)){
-            cv::Rect target(minLocation.x, minLocation.y, aPos.width, aPos.height), origin(5, 5, aPos.width, aPos.height);
-            aRetPos = cv::Rect(minLocation.x - 5 + aPos.x, minLocation.y - 5 + aPos.y, aPos.width, aPos.height);
+            cv::Rect target(minLocation.x, minLocation.y, aPos.width, aPos.height), origin(aInflate, aInflate, aPos.width, aPos.height);
+            aRetPos = cv::Rect(minLocation.x - aInflate + aPos.x, minLocation.y - aInflate + aPos.y, aPos.width, aPos.height);
             return (target & origin).area() * 1.0 / (target | origin).area();
         }else
             return 0;
@@ -112,7 +120,7 @@ public:
         dst::showDstLog("card place: index " + QString::number(aCard->getIndex()) + "; cost " + QString::number(aCard->getCost()));
         getCards(aCard->getCost())->erase(aCard);
         --m_cards_count;
-        for (int i = 0; i < 10; ++i)
+        for (int i = 0; i < 11; ++i)
             for (auto j : m_cards[i]){
                 auto idx = j->getIndex();
                 if (idx > aCard->getIndex())
@@ -310,7 +318,9 @@ private:
     cv::Rect m_;
 private:
     cv::Mat m_button;
+    cv::Mat m_button2;
     cv::Rect m_loc;
+    cv::Rect m_loc2;
     cv::Rect m_opt_loc;
     cv::Rect m_gem_loc;
     cv::Rect m_hero_loc;
@@ -497,9 +507,11 @@ private:
             }
         }while(i >= 0);
 
-        if (gem_count > 1)
+        if (gem_count > 1){
             TRIG("controlWorld", STMJSON(dst::Json("type", "click",
                                                    "org", dst::JArray(m_hero_loc.x + m_hero_loc.width * 0.5, m_hero_loc.y + m_hero_loc.height * 0.5))))
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000)); //perhaps it will cause shaking
+        }
     }
 private:
     void savePredictResult2(const std::vector<cv::Rect>& aPoses, const std::vector<int>& aLabels, const QJsonObject aLabel = QJsonObject(), const QString& aDir = "supplyCard"){
@@ -529,6 +541,8 @@ public:
     myTurnScene() : scene(){
         loadFeatureImage("myTurn", m_button);
         loadFeaturePos("myTurn", m_loc);
+        loadFeatureImage("myTurn2", m_button2);
+        loadFeaturePos("myTurn2", m_loc2);
         loadFeaturePos("cardPlace", m_card_place);
 
         loadFeaturePos("myCountFeature", m_my_count_feature);
@@ -555,6 +569,10 @@ public:
     }
     double isCurrentScene(const cv::Mat &aScreen, const QImage& aOrigin) override{
         auto ret = calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc);
+        if (ret == 0.0){
+            cv::Rect tmp;
+            ret = calcFeatureIOU(aScreen, m_button2, m_loc2, m_opt_loc);
+        }
         dst::showDstLog("myTurn conf : " + QString::number(ret));
 
         if (ret == 1.0){
@@ -615,6 +633,8 @@ public:
     gameOverScene() : scene(){
         loadFeaturePos("gameOver", m_loc);
         loadFeatureImage("gameOver", m_button);
+        //threshold(m_button, m_button, 200, 255, cv::THRESH_BINARY);
+        //cv::imshow("hello", m_button);
         /*if (m_button.cols > 0 && m_button.rows > 0){
             cv::Mat feature(m_button.rows, m_button.cols, CV_8UC1, cv::Scalar(0, 0, 0));
             for (int i = 0; i < 5; ++i){
@@ -624,17 +644,51 @@ public:
                     m_button(loc).clone().copyTo(feature(loc));
             }
             m_button = feature;
-            //cv::imshow("hello", m_button);
+            //
         }*/
     }
     double isCurrentScene(const cv::Mat& aScreen, const QImage& aOrigin) override{
-        return calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc, 40);
+        /*int tmp = 0;
+        auto ret = calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc, 100, cv::Mat(), [&](const cv::Mat& aImage){
+            cv::Mat ret;
+            normalize(aImage, ret, 0, 1, cv::NORM_MINMAX);
+
+            auto nm = QString::number(tmp++).toStdString();
+            cv::imshow("hello" + nm, aImage);
+            cv::moveWindow("hello" + nm, 300, 0);
+
+            return ret;
+        });*/
+        //auto ret = 0;
+
+        auto src = aScreen(cv::Rect(m_loc.x - 60, m_loc.y - 60, m_loc.width + 2 * 60, m_loc.height + 2 * 60));
+        cv::Mat tmp1, tmp2, tmp3;
+        threshold(src, tmp1, 200, 255, cv::THRESH_BINARY);
+        threshold(m_button, tmp2, 200, 255, cv::THRESH_BINARY);
+
+        //normalize(m_button, tmp1, 0, 1, cv::NORM_MINMAX);
+       // normalize(src, tmp2, 0, 1, cv::NORM_MINMAX);
+        cv::matchTemplate(src, m_button, tmp3, cv::TemplateMatchModes::TM_CCORR_NORMED, tmp2);
+
+        double minValue, maxValue;
+        cv::Point minLocation, maxLocation;
+        cv::Point matchLocation;
+        minMaxLoc(tmp3, &minValue, &maxValue, &minLocation, &maxLocation, cv::Mat());
+
+        dst::showDstLog("game over conf: " + QString::number(minValue) + ";" + QString::number(maxValue));
+        if (maxValue > 0.998){
+            //savePredictResult("gaveOver", aOrigin, QString::number(0));
+            m_opt_loc = m_loc;
+            return 1;
+        }
+        else
+            return 0;
     }
     void updateModel(std::shared_ptr<cardsModel> aCards) override{
         dst::showDstLog("game over : ");
     }
     bool calcOperation() override{
-        TRIG("controlWorld", STMJSON(dst::Json("type", "click", "org", dst::JArray(m_opt_loc.x + m_opt_loc.width * 0.5, m_opt_loc.y + m_opt_loc.height * 0.5))));
+        TRIG("controlWorld", STMJSON(dst::Json("type", "click", "org", dst::JArray(m_opt_loc.x + m_opt_loc.width * 0.5, m_opt_loc.y + m_opt_loc.height * 0.5))))
         return true;
     }
 };
