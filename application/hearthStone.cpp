@@ -8,6 +8,7 @@
 
 //first select概率性失败
 //gameOver识别优化
+//myTurn识别优化
 //识别手牌数优化
 //神经网络优化：扩展组合种类
 //神经网络容量上限？
@@ -569,11 +570,12 @@ public:
     }
     double isCurrentScene(const cv::Mat &aScreen, const QImage& aOrigin) override{
         auto ret = calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc);
+        dst::showDstLog("myTurn conf : " + QString::number(ret));
         if (ret == 0.0){
             cv::Rect tmp;
             ret = calcFeatureIOU(aScreen, m_button2, m_loc2, m_opt_loc);
+            dst::showDstLog("myTurn conf2 : " + QString::number(ret));
         }
-        dst::showDstLog("myTurn conf : " + QString::number(ret));
 
         if (ret == 1.0){
            // aOrigin.save(QString::number(m_tick++) + ".png");
