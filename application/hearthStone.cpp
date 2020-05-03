@@ -8,7 +8,6 @@
 
 //first select概率性失败
 //myTurn识别优化
-//识别手牌数优化(纯色情况)
 //嘲讽怪识别
 //定向卡判断
 //神经网络优化：扩展组合种类
@@ -16,7 +15,7 @@
 //神经网络优化：训练好的网络以模块形式直接用于其他任务
 //已处理：
 //0.软件整体结构（与标注工具联动训练，识屏动作流程）
-//1.手牌数识别，手牌消耗识别
+//1.手牌数识别(纯色问题)，手牌消耗识别
 //2.场景识别（我的回合，地方回合，游戏结束，第一次选择回合，进入游戏回合）
 //3.怪物数识别，怪物血量和攻击力识别
 //4.截图防震动
@@ -341,9 +340,7 @@ private:
     cv::Rect m_;
 private:
     cv::Mat m_button;
-    cv::Mat m_button2;
     cv::Rect m_loc;
-    cv::Rect m_loc2;
     cv::Rect m_opt_loc;
     cv::Rect m_gem_loc;
     cv::Rect m_hero_loc;
@@ -432,19 +429,29 @@ private:
     }
 
     int recognizeCardCount(){
+        QColor red(255, 0, 0), green(0, 255, 0), white(255, 255, 255);
         auto ret = - 1;
         for (int i = 9; i >= 0; --i){
             bool isret = true;
             for (int j = 0; j <= i; ++j){
                 int cnt = 0;
-                auto roi = m_screen(m_cards_model->getCardPos(i, j));
+                auto rng = m_cards_model->getCardPos(i, j);
+                auto cld = m_origin.copy(rng.x, rng.y, rng.width, rng.height);
+                for (int l = 0; l < rng.height; l++){
+                    for (int m = 0; m < rng.width; m++){
+                        auto clr = cld.pixelColor(m, l);
+                        if (clr == white || clr == red || clr == green)
+                            cnt++;
+                    }
+                }
+                /*auto roi = m_screen(rng);
                 for(int l = 0; l < roi.rows; l++){
                    // auto p = roi.ptr<uchar>(l);
                    for(int m = 0; m < roi.cols; m++){
                        if (roi.at<uchar>(l, m) == 255)
                            cnt++;
                    }
-                }
+                }*/
                 //std::cout << cnt << std::endl;
                 if (cnt < 90){
                     isret = false;
@@ -571,8 +578,6 @@ public:
     myTurnScene() : scene(){
         loadFeatureImage("myTurn", m_button);
         loadFeaturePos("myTurn", m_loc);
-        loadFeatureImage("myTurn2", m_button2);
-        loadFeaturePos("myTurn2", m_loc2);
         loadFeaturePos("cardPlace", m_card_place);
 
         loadFeaturePos("myCountFeature", m_my_count_feature);
@@ -587,6 +592,21 @@ public:
         loadFeaturePos("gemPos", m_gem_loc);
         loadFeaturePos("heroPos", m_hero_loc);
         loadFeaturePos("enemyHeroPos", m_enemy_hero_loc);
+
+        dst::streamManager::instance()->registerEvent("unitTest", "mdyMyTurn2", [this](std::shared_ptr<dst::streamData> aInput){
+            QJsonObject info;
+            dst::configObject::loadJsonFileConfig("unittestInfo", info);
+            if (info.value("myturn").toBool()){
+                auto lst = info.value("myturn_list").toArray();
+                for (auto i : lst){
+                    auto src = QImage(i.toString());
+                    auto src0 = QImage2cvMat(src);
+                    cv::cvtColor(src0, src0, cv::COLOR_RGB2GRAY);
+                    isCurrentScene(src0, src);
+                }
+            }
+            return aInput;
+        });
 
         dst::streamManager::instance()->registerEvent("unitTest", "mdyMyTurn", [this](std::shared_ptr<dst::streamData> aInput){
             QJsonObject info;
@@ -606,24 +626,28 @@ public:
         });
     }
     double isCurrentScene(const cv::Mat &aScreen, const QImage& aOrigin) override{
-        auto ret = calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc);
+       /* auto ret = calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc);
         dst::showDstLog("myTurn conf : " + QString::number(ret));
         if (ret == 0.0){
             cv::Rect tmp;
             ret = calcFeatureIOU(aScreen, m_button2, m_loc2, m_opt_loc);
             dst::showDstLog("myTurn conf2 : " + QString::number(ret));
-        }
+        }*/
+        auto src = aScreen(cv::Rect(m_loc.x - 5, m_loc.y - 5, m_loc.width + 2 * 5, m_loc.height + 2 * 5)).clone();
+        cv::Mat tmp1, tmp2, tmp3;
+        threshold(255 - src, tmp1, 200, 255, cv::THRESH_BINARY);
+        threshold(255 - m_button, tmp2, 200, 255, cv::THRESH_BINARY);
+        cv::matchTemplate(tmp1, tmp2, tmp3, cv::TemplateMatchModes::TM_CCORR_NORMED);
 
-        if (ret == 1.0){
-           // aOrigin.save(QString::number(m_tick++) + ".png");
-            double max, min;
-            cv::Point min_loc, max_loc;
-            cv::minMaxLoc(aScreen(m_opt_loc), &min, &max, &min_loc, &max_loc); //198,200,165,136,93;31
-            dst::showDstLog("my turn max: " + QString::number(max));
-            if (max < 40)
-                return 0;
-            else
-                return ret;
+        double minValue, maxValue;
+        cv::Point minLocation, maxLocation;
+        cv::Point matchLocation;
+        minMaxLoc(tmp3, &minValue, &maxValue, &minLocation, &maxLocation, cv::Mat());
+        //dst::showDstLog("myTurn conf : " + QString::number(maxValue));
+
+        if (maxValue > 0.85){
+            m_opt_loc = m_loc;
+            return 1;
         }else
             return 0;
     }
@@ -639,7 +663,7 @@ public:
     bool calcOperation() override{
         play();
        // dst::showDstLog("before : ");
-        TRIG("controlWorld", STMJSON(dst::Json("type", "click", "org", dst::JArray(m_opt_loc.x + m_opt_loc.width * 0.5, m_opt_loc.y + m_opt_loc.height * 0.5))));
+        TRIG("controlWorld", STMJSON(dst::Json("type", "click", "org", dst::JArray(m_opt_loc.x + m_opt_loc.width * 0.5, m_opt_loc.y + m_opt_loc.height * 0.5))))
        // dst::showDstLog("after : ");
         return true;
     }
@@ -734,7 +758,7 @@ public:
         minMaxLoc(tmp3, &minValue, &maxValue, &minLocation, &maxLocation, cv::Mat());
 
         //std::cout << minValue << ";" << maxValue << std::endl;
-        dst::showDstLog("game over conf: " + QString::number(minValue) + ";" + QString::number(maxValue));
+        //dst::showDstLog("game over conf: " + QString::number(minValue) + ";" + QString::number(maxValue));
         if (maxValue > 0.8){
             //savePredictResult("gaveOver", aOrigin, QString::number(0));
             m_opt_loc = m_loc;

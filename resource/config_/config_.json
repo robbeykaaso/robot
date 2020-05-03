@@ -5,7 +5,12 @@
         "D:/deepsight/deepinspectstorage2/image/1588461264-377116D9-14EE-4c39-8505-FEA49FFE1ABA/0.png",
         "D:/deepsight/deepinspectstorage2/image/1588461259-5677A2AC-4622-4807-A495-A82FE10A304F/0.png",
         "D:/deepsight/deepinspectstorage2/image/1588461249-32A58C69-06FE-4e96-B5C0-02F8A8A0B780/0.png"],
-        "gameover": true,
+        "myturn": true,
+        "myturn_list": [
+            "D:/deepsight/deepinspectstorage2/image/1588489217-67C03C5A-9728-417b-8EC3-B5E1AB768248/0.png",
+            "D:/deepsight/deepinspectstorage2/image/1588489217-64B145E8-8A24-4f4b-9336-0747262CD00C/0.png"
+        ],
+        "gameover": false,
         "gameover_list": ["F:/imageSet2/gaveOver/1588383369-816BC6E3-8361-421b-B184-1E624C455ED3/0.png",
         "F:/imageSet2/gaveOver/1588383374-B195A1A4-397C-414a-B778-9D28A5852EBC/0.png",
         "F:/imageSet2/gaveOver/1588383378-2D963189-5C35-48c7-89F7-9FC64A58B684/0.png",
