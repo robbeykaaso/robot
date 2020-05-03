@@ -7,12 +7,19 @@
 #include <opencv2/opencv.hpp>
 
 //first select概率性失败
-//gameOver识别优化
 //myTurn识别优化
-//识别手牌数优化
+//识别手牌数优化(纯色情况)
+//嘲讽怪识别
+//定向卡判断
 //神经网络优化：扩展组合种类
 //神经网络容量上限？
 //神经网络优化：训练好的网络以模块形式直接用于其他任务
+//已处理：
+//0.软件整体结构（与标注工具联动训练，识屏动作流程）
+//1.手牌数识别，手牌消耗识别
+//2.场景识别（我的回合，地方回合，游戏结束，第一次选择回合，进入游戏回合）
+//3.怪物数识别，怪物血量和攻击力识别
+//4.截图防震动
 
 class card{
 public:
@@ -117,6 +124,21 @@ public:
             return;
         addCard(aCard);
     }
+
+    void refreshCards(std::vector<cv::Rect>& aPoses, std::vector<int>& aLabels, int aCardCount, const cv::Mat& aScreen){
+        for (int i = 0; i < 11; ++i)
+            m_cards[i].clear();
+        m_cards_count = 0;
+        for (int i = 0; i < aCardCount; ++i){
+            auto pos = getCardPos(aCardCount - 1, i);
+            auto roi = aScreen(pos);
+            auto cost = trainingServer::instance()->recognizeNumber(roi);
+            addCard(std::make_shared<card>(i, cost));
+            aLabels.push_back(cost);
+            aPoses.push_back(pos);
+        }
+    }
+
     void placeCard(std::shared_ptr<card> aCard) {
         dst::showDstLog("card place: index " + QString::number(aCard->getIndex()) + "; cost " + QString::number(aCard->getCost()));
         getCards(aCard->getCost())->erase(aCard);
@@ -423,7 +445,8 @@ private:
                            cnt++;
                    }
                 }
-                if (cnt < 100){
+                //std::cout << cnt << std::endl;
+                if (cnt < 90){
                     isret = false;
                     break;
                 }
@@ -467,8 +490,8 @@ private:
         QJsonObject img_lbls;
 
         recognizeAttendants(poses, lbls, img_lbls);
-        img_lbls.insert("card", QString::number(recognizeCardCount()));
-        supplyCard(poses, lbls);
+        //supplyCard(poses, lbls);
+        //auto cardmodel = supplyCard2(poses, lbls, card_count);
         int gem_count = recognizeGemCount(poses, lbls, img_lbls);
 
         std::set<std::shared_ptr<card>> used;
@@ -477,6 +500,12 @@ private:
             auto higher_cost = std::min(gem_count, 10);
             i = higher_cost;
             auto new_gem_count = gem_count;
+
+            poses.clear();lbls.clear();
+            int card_count = recognizeCardCount();
+            m_cards_model->refreshCards(poses, lbls, card_count, m_screen);
+            savePredictResult2(poses, lbls, dst::Json("card", QString::number(card_count)), "myTurn");
+
             for (; i >= 0; i--){
                 auto cards = *m_cards_model->getCards(i);
                 for (auto card : cards){
@@ -559,14 +588,22 @@ public:
         loadFeaturePos("heroPos", m_hero_loc);
         loadFeaturePos("enemyHeroPos", m_enemy_hero_loc);
 
-       /* dst::streamManager::instance()->registerEvent("unitTest", "mdyHearthStone", [this](std::shared_ptr<dst::streamData> aInput){
-            m_origin = QImage("D:/build-deepinspection-Desktop_Qt_5_12_2_MSVC2015_64bit-Default/deepinspectstorage2/image/1587957025-55CC3B51-0D40-4931-9FD9-A4DBEAB49CF6/0.png");
-            m_screen = QImage2cvMat(m_origin);
-            cv::cvtColor(m_screen, m_screen, cv::COLOR_RGB2GRAY);
-            m_cards_model = std::make_shared<cardsModel>();
-            auto test = recognizeCardCount();
+        dst::streamManager::instance()->registerEvent("unitTest", "mdyMyTurn", [this](std::shared_ptr<dst::streamData> aInput){
+            QJsonObject info;
+            dst::configObject::loadJsonFileConfig("unittestInfo", info);
+            if (info.value("card_count").toBool()){
+                auto lst = info.value("card_count_list").toArray();
+                for (auto i : lst){
+                    m_origin = QImage(i.toString());
+                    m_screen = QImage2cvMat(m_origin);
+                    cv::cvtColor(m_screen, m_screen, cv::COLOR_RGB2GRAY);
+                    m_cards_model = std::make_shared<cardsModel>();
+                    auto test = recognizeCardCount();
+                    std::cout << test << std::endl;
+                }
+            }
             return aInput;
-        });*/
+        });
     }
     double isCurrentScene(const cv::Mat &aScreen, const QImage& aOrigin) override{
         auto ret = calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc);
@@ -635,6 +672,21 @@ public:
     gameOverScene() : scene(){
         loadFeaturePos("gameOver", m_loc);
         loadFeatureImage("gameOver", m_button);
+
+        dst::streamManager::instance()->registerEvent("unitTest", "mdyGameOver", [this](std::shared_ptr<dst::streamData> aInput){
+            QJsonObject info;
+            dst::configObject::loadJsonFileConfig("unittestInfo", info);
+            if (info.value("gameover").toBool()){
+                auto lst = info.value("gameover_list").toArray();
+                for (auto i : lst){
+                    auto src = QImage(i.toString());
+                    auto src0 = QImage2cvMat(src);
+                    cv::cvtColor(src0, src0, cv::COLOR_RGB2GRAY);
+                    isCurrentScene(src0, src);
+                }
+            }
+            return aInput;
+        });
         //threshold(m_button, m_button, 200, 255, cv::THRESH_BINARY);
         //cv::imshow("hello", m_button);
         /*if (m_button.cols > 0 && m_button.rows > 0){
@@ -663,22 +715,27 @@ public:
         });*/
         //auto ret = 0;
 
-        auto src = aScreen(cv::Rect(m_loc.x - 60, m_loc.y - 60, m_loc.width + 2 * 60, m_loc.height + 2 * 60));
+        auto src = aScreen(cv::Rect(m_loc.x - 40, m_loc.y - 40, m_loc.width + 2 * 40, m_loc.height + 2 * 40));
         cv::Mat tmp1, tmp2, tmp3;
         threshold(src, tmp1, 200, 255, cv::THRESH_BINARY);
         threshold(m_button, tmp2, 200, 255, cv::THRESH_BINARY);
 
+        //cv::imshow("hello", tmp1);
+        //cv::moveWindow("hello", 150, 0);
+        //cv::imshow("hello2", tmp2);
+        //cv::moveWindow("hello2", 300, 0);
         //normalize(m_button, tmp1, 0, 1, cv::NORM_MINMAX);
        // normalize(src, tmp2, 0, 1, cv::NORM_MINMAX);
-        cv::matchTemplate(src, m_button, tmp3, cv::TemplateMatchModes::TM_CCORR_NORMED, tmp2);
+        cv::matchTemplate(tmp1, tmp2, tmp3, cv::TemplateMatchModes::TM_CCORR_NORMED);
 
         double minValue, maxValue;
         cv::Point minLocation, maxLocation;
         cv::Point matchLocation;
         minMaxLoc(tmp3, &minValue, &maxValue, &minLocation, &maxLocation, cv::Mat());
 
+        //std::cout << minValue << ";" << maxValue << std::endl;
         dst::showDstLog("game over conf: " + QString::number(minValue) + ";" + QString::number(maxValue));
-        if (maxValue > 0.998){
+        if (maxValue > 0.8){
             //savePredictResult("gaveOver", aOrigin, QString::number(0));
             m_opt_loc = m_loc;
             return 1;

@@ -1,0 +1,23 @@
+{
+    "unittestInfo":{
+        "card_count": false,
+        "card_count_list": ["D:/deepsight/deepinspectstorage2/image/1588461268-7C836FD2-32FF-4145-BD24-B279FF701985/0.png",
+        "D:/deepsight/deepinspectstorage2/image/1588461264-377116D9-14EE-4c39-8505-FEA49FFE1ABA/0.png",
+        "D:/deepsight/deepinspectstorage2/image/1588461259-5677A2AC-4622-4807-A495-A82FE10A304F/0.png",
+        "D:/deepsight/deepinspectstorage2/image/1588461249-32A58C69-06FE-4e96-B5C0-02F8A8A0B780/0.png"],
+        "gameover": true,
+        "gameover_list": ["F:/imageSet2/gaveOver/1588383369-816BC6E3-8361-421b-B184-1E624C455ED3/0.png",
+        "F:/imageSet2/gaveOver/1588383374-B195A1A4-397C-414a-B778-9D28A5852EBC/0.png",
+        "F:/imageSet2/gaveOver/1588383378-2D963189-5C35-48c7-89F7-9FC64A58B684/0.png",
+        "F:/imageSet2/gaveOver/1588383383-84B1358C-5664-4aeb-B724-7E879C18CCD5/0.png",
+        "F:/imageSet2/gaveOver/1588383387-E6F657C4-5E9C-4e8b-8250-8ECA70291F40/0.png",
+        "F:/imageSet2/gaveOver/1588383499-7E1CFD4F-4F45-42ef-B6DA-BB5614798DA3/0.png",
+        "F:/imageSet2/gaveOver/1588383503-DF9C729E-3D09-4627-B1BD-E59C51426E89/0.png",
+        "F:/imageSet2/gaveOver/1588383592-EDE57CF1-D1F7-49c1-B921-C3CE3856D729/0.png",
+        "F:/imageSet2/gaveOver/1588383596-034663A8-2EF5-4375-8FE9-788A51296E45/0.png",
+        "F:/imageSet2/gaveOver/1588383600-009E0170-D7A8-4ed6-B497-1B16FB85ECB4/0.png",
+        "F:/imageSet2/gaveOver/1588383605-EAAEC4C3-C26D-4cf8-B9E6-8884C6168F48/0.png",
+        "F:/imageSet2/gaveOver/1588383612-2A518A29-CB52-4bc7-A7CF-FD22D1F164A9/0.png",
+        "F:/imageSet2/gaveOver/1588383616-1A4CECDA-380D-4440-9128-48F63C93D30A/0.png"]
+    }
+}
