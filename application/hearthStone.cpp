@@ -6,9 +6,11 @@
 #include <QScreen>
 #include <opencv2/opencv.hpp>
 
-//first select概率性失败
-//myTurn识别优化
+//first select优化
+//选择卡牌1,2的情况
+//10以上数字识别
 //嘲讽怪识别
+//战吼定向操作
 //定向卡判断
 //神经网络优化：扩展组合种类
 //神经网络容量上限？
@@ -16,7 +18,7 @@
 //已处理：
 //0.软件整体结构（与标注工具联动训练，识屏动作流程）
 //1.手牌数识别(纯色问题)，手牌消耗识别
-//2.场景识别（我的回合，地方回合，游戏结束，第一次选择回合，进入游戏回合）
+//2.场景识别（我的回合，地方回合，游戏结束，第一次选择回合，进入游戏回合，选择卡牌）
 //3.怪物数识别，怪物血量和攻击力识别
 //4.截图防震动
 
@@ -340,11 +342,16 @@ private:
     cv::Rect m_;
 private:
     cv::Mat m_button;
+    cv::Mat m_select;
     cv::Rect m_loc;
     cv::Rect m_opt_loc;
     cv::Rect m_gem_loc;
     cv::Rect m_hero_loc;
     cv::Rect m_enemy_hero_loc;
+    cv::Rect m_select_loc;
+    cv::Rect m_select_34;
+    cv::Rect m_loc_3[3];
+    cv::Rect m_loc_4[4];
     std::shared_ptr<cardsModel> m_cards_model;
     cv::Rect m_card_place;
     cv::Rect m_attendant_pos[7][7], m_enemy_pos[7][7];
@@ -362,7 +369,7 @@ private:
         captureScreen();
         int cnt = 0;
         do{
-            auto fst = m_screen(cv::Rect(m_gem_loc.x, m_gem_loc.y, m_gem_loc.width, m_gem_loc.height)).clone();
+            auto fst = m_screen(m_gem_loc).clone();
             captureScreen();
             cv::Rect tar;
             auto ret = calcFeatureIOU(m_screen, fst, m_gem_loc, tar);
@@ -524,9 +531,13 @@ private:
                                                            "org", dst::JArray(st_x, st_y),
                                                            "del", dst::JArray(m_card_place.x + m_card_place.width * 0.5 - st_x, m_card_place.y + m_card_place.height * 0.5 - st_y))));
                     used.insert(card);
-                    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                    if (card->getCost() == 2)
+                        std::this_thread::sleep_for(std::chrono::milliseconds(2500));
+                    else
+                        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
                     if (!debounceCaptureScreen())
                         return;
+                    checkSelectScene();
 
                     poses.clear();lbls.clear();
                     new_gem_count = recognizeGemCount(poses, lbls);
@@ -578,6 +589,13 @@ public:
     myTurnScene() : scene(){
         loadFeatureImage("myTurn", m_button);
         loadFeaturePos("myTurn", m_loc);
+        loadFeatureImage("normalSelect", m_select);
+        loadFeaturePos("normalSelect", m_select_loc);
+        loadFeaturePos("normalSelect34", m_select_34);
+        for (int i = 0; i < 3; ++i)
+            loadFeaturePos("n_select3_" + QString::number(i), m_loc_3[i]);
+        for (int i = 0; i < 4; ++i)
+            loadFeaturePos("n_select4_" + QString::number(i), m_loc_4[i]);
         loadFeaturePos("cardPlace", m_card_place);
 
         loadFeaturePos("myCountFeature", m_my_count_feature);
@@ -592,6 +610,12 @@ public:
         loadFeaturePos("gemPos", m_gem_loc);
         loadFeaturePos("heroPos", m_hero_loc);
         loadFeaturePos("enemyHeroPos", m_enemy_hero_loc);
+
+        dst::streamManager::instance()->registerEvent("unitTest", "mdyMyTurn3", [this](std::shared_ptr<dst::streamData> aInput){
+            captureScreen();
+            checkSelectScene();
+            return aInput;
+        });
 
         dst::streamManager::instance()->registerEvent("unitTest", "mdyMyTurn2", [this](std::shared_ptr<dst::streamData> aInput){
             QJsonObject info;
@@ -625,6 +649,65 @@ public:
             return aInput;
         });
     }
+
+    void checkSelectScene(){
+        auto src = m_screen(cv::Rect(m_select_loc.x - 5, m_select_loc.y - 5, m_select_loc.width + 2 * 5, m_select_loc.height + 2 * 5));
+        cv::Mat tmp1, tmp2, tmp3;
+        threshold(src, tmp1, 200, 255, cv::THRESH_BINARY);
+        threshold(m_select, tmp2, 200, 255, cv::THRESH_BINARY);
+        cv::matchTemplate(tmp1, tmp2, tmp3, cv::TemplateMatchModes::TM_CCORR_NORMED);
+
+        double minValue, maxValue;
+        cv::Point minLocation, maxLocation;
+        cv::Point matchLocation;
+        minMaxLoc(tmp3, &minValue, &maxValue, &minLocation, &maxLocation, cv::Mat());
+
+        /*cv::imshow("hello1", tmp2);
+        cv::moveWindow("hello1", 500, 0);
+        cv::imshow("hello2", tmp1);
+        cv::moveWindow("hello2", 600, 0);*/
+
+       // std::cout << maxValue << std::endl;
+        dst::showDstLog("myTurn select conf : " + QString::number(maxValue));
+
+        if (maxValue > 0.9){
+            std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+            captureScreen(); //wait for gold coins over...
+
+            int cnt = 3;
+            cv::Rect* tar_locs = m_loc_3;
+            auto cld = m_origin.copy(m_select_34.x, m_select_34.y, m_select_34.width, m_select_34.height);
+            for (int i = 0; i < m_select_34.width && cnt == 3; ++i)
+                for (int j = 0; j < m_select_34.height; ++j){
+                    if (cld.pixelColor(i, j).green() != 255){
+                        cnt = 4;
+                        tar_locs = m_loc_4;
+                        break;
+                    }
+                }
+
+            std::vector<cv::Rect> poses;
+            std::vector<int> lbls;
+            int mn_cost = - 1, sel = - 1;
+            for (int i = 0; i < cnt; ++i){
+                auto roi = m_screen(tar_locs[i]);
+                auto cost = trainingServer::instance()->recognizeNumber(roi);
+                poses.push_back(tar_locs[i]);
+                lbls.push_back(cost);
+                if (cost > mn_cost){
+                    mn_cost = cost;
+                    sel = i;
+                }
+            }
+            TRIG("controlWorld", STMJSON(dst::Json("type", "click",
+                                                   "org", dst::JArray(tar_locs[sel].x + tar_locs[sel].width * 0.5, tar_locs[sel].y + tar_locs[sel].height * 0.5))))
+           // savePredictResult2(poses, lbls, QJsonObject(), "selectScene");
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            captureScreen();
+        }
+
+    }
+
     double isCurrentScene(const cv::Mat &aScreen, const QImage& aOrigin) override{
        /* auto ret = calcFeatureIOU(aScreen, m_button, m_loc, m_opt_loc);
         dst::showDstLog("myTurn conf : " + QString::number(ret));
@@ -669,7 +752,7 @@ public:
     }
 };
 
-class enemyTurnScene : public scene{
+/*class enemyTurnScene : public scene{
 private:
     cv::Mat m_button;
     cv::Rect m_loc;
@@ -685,7 +768,7 @@ public:
     void updateModel(std::shared_ptr<cardsModel> aCards) override{
 
     }
-};
+};*/
 
 class gameOverScene : public scene{
 private:
@@ -783,7 +866,7 @@ public:
         m_scenes.push_back(std::make_shared<readyScene>());
         m_scenes.push_back(std::make_shared<firstSelectScene>());
         m_scenes.push_back(std::make_shared<myTurnScene>());
-        m_scenes.push_back(std::make_shared<enemyTurnScene>());
+       // m_scenes.push_back(std::make_shared<enemyTurnScene>());
         m_scenes.push_back(std::make_shared<gameOverScene>());
 
         dst::streamManager::instance()->registerEvent("commandTrainGem", "mdyHearthStone", [this](std::shared_ptr<dst::streamData> aInput){

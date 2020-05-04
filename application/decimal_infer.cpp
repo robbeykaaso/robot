@@ -904,7 +904,8 @@ void trainingServer::initialize(){
         std::vector<tiny_dnn::label_t> test_ret;
         for (int j = 0; j < test_images.size(); ++j){
             QJsonArray his;
-            m_result_list.push_back(QString::number(predict(nn, test_images.at(j), his)));
+            auto ret = predict(nn, test_images.at(j), his);
+            m_result_list.push_back(QString::number(ret));
             m_result_histogram.push_back(his);
         }
         m_job_state = "process_finish";
