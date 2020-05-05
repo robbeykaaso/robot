@@ -6,5 +6,11 @@ a AI robot to play games automatically
 2. tinny-dnn
 3. opencv
 
+# supported os
+1. windows 10
+
+# supported screen resolution
+1. 1920 * 1080 (default resource)
+
 # developping
-hearthStone
+1. hearthStone

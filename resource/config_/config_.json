@@ -5,10 +5,12 @@
         "D:/deepsight/deepinspectstorage2/image/1588461264-377116D9-14EE-4c39-8505-FEA49FFE1ABA/0.png",
         "D:/deepsight/deepinspectstorage2/image/1588461259-5677A2AC-4622-4807-A495-A82FE10A304F/0.png",
         "D:/deepsight/deepinspectstorage2/image/1588461249-32A58C69-06FE-4e96-B5C0-02F8A8A0B780/0.png"],
-        "myturn": false,
+        "myturn": true,
         "myturn_list": [
-            "D:/deepsight/deepinspectstorage2/image/1588489217-67C03C5A-9728-417b-8EC3-B5E1AB768248/0.png",
-            "D:/deepsight/deepinspectstorage2/image/1588489217-64B145E8-8A24-4f4b-9336-0747262CD00C/0.png"
+            "D:/deepsight/deepinspectstorage2/image/1588664360-1AF86F48-DAA3-4127-9625-3DE2EACBDAE1/0.png",
+            "D:/deepsight/deepinspectstorage2/image/1588664360-17C3658E-71A9-4f69-8BD6-CD2A3216D2B9/0.png",
+            "D:/deepsight/deepinspectstorage2/image/1588664359-B18B09B6-9ADF-4bfb-9673-5569B2120953/0.png"
+
         ],
         "gameover": false,
         "gameover_list": ["F:/imageSet2/gaveOver/1588383369-816BC6E3-8361-421b-B184-1E624C455ED3/0.png",

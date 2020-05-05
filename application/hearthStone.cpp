@@ -6,8 +6,6 @@
 #include <QScreen>
 #include <opencv2/opencv.hpp>
 
-//first select优化
-//选择卡牌1,2的情况
 //10以上数字识别
 //嘲讽怪识别
 //战吼定向操作
@@ -98,6 +96,16 @@ protected:
         QDir().mkdir("config_/" + aDirectory + "/" + id);
         aImage.save("config_/" + aDirectory + "/" + id + "/0.png");
         return id;
+    }
+    bool isGreenBar(const QImage& aImage, const cv::Rect& aPos){
+        auto cld = aImage.copy(aPos.x, aPos.y, aPos.width, aPos.height);
+        for (int i = 0; i < aPos.width; ++i)
+            for (int j = 0; j < aPos.height; ++j){
+                if (cld.pixelColor(i, j).green() != 255){
+                    return false;
+                }
+            }
+        return true;
     }
     bool m_valid = false;
 };
@@ -218,18 +226,12 @@ public:
             loadFeaturePos("select3_" + QString::number(i), m_loc_3[i]);
         for (int i = 0; i < 4; ++i)
             loadFeaturePos("select4_" + QString::number(i), m_loc_4[i]);
-        loadFeaturePos("select_split", m_split);
+        loadFeaturePos("select34", m_split);
     }
     double isCurrentScene(const cv::Mat& aScreen, const QImage& aOrigin) override{
-        double minValue, maxValue;
-        cv::Point minLocation, maxLocation;
-        cv::Point matchLocation;
-        auto split = aScreen(m_split);
-        minMaxLoc(split, &minValue, &maxValue, &minLocation, &maxLocation, cv::Mat());
-
         cv::Rect* tgt = m_loc_3;
         int sum = 3;
-        if (maxValue > 55){
+        if (!isGreenBar(aOrigin, m_split)){
             tgt = m_loc_4;
             sum = 4;
         }
@@ -350,6 +352,8 @@ private:
     cv::Rect m_enemy_hero_loc;
     cv::Rect m_select_loc;
     cv::Rect m_select_34;
+    cv::Rect m_select_30;
+    cv::Rect m_select_40;
     cv::Rect m_loc_3[3];
     cv::Rect m_loc_4[4];
     std::shared_ptr<cardsModel> m_cards_model;
@@ -531,7 +535,7 @@ private:
                                                            "org", dst::JArray(st_x, st_y),
                                                            "del", dst::JArray(m_card_place.x + m_card_place.width * 0.5 - st_x, m_card_place.y + m_card_place.height * 0.5 - st_y))));
                     used.insert(card);
-                    if (card->getCost() == 2)
+                    if (card->getCost() == 2 || card->getCost() == 4)
                         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
                     else
                         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
@@ -592,6 +596,8 @@ public:
         loadFeatureImage("normalSelect", m_select);
         loadFeaturePos("normalSelect", m_select_loc);
         loadFeaturePos("normalSelect34", m_select_34);
+        loadFeaturePos("normalSelect30", m_select_30);
+        loadFeaturePos("normalSelect40", m_select_40);
         for (int i = 0; i < 3; ++i)
             loadFeaturePos("n_select3_" + QString::number(i), m_loc_3[i]);
         for (int i = 0; i < 4; ++i)
@@ -613,6 +619,9 @@ public:
 
         dst::streamManager::instance()->registerEvent("unitTest", "mdyMyTurn3", [this](std::shared_ptr<dst::streamData> aInput){
             captureScreen();
+            //m_origin = QImage("D:/deepsight/deepinspectstorage2/image/1588643072-DAE40344-E9C7-46b5-88BE-FA5F8B6F884F/0.png");
+            //m_screen = QImage2cvMat(m_origin);
+           // cv::cvtColor(m_screen, m_screen, cv::COLOR_RGB2GRAY);
             checkSelectScene();
             return aInput;
         });
@@ -676,20 +685,21 @@ public:
 
             int cnt = 3;
             cv::Rect* tar_locs = m_loc_3;
-            auto cld = m_origin.copy(m_select_34.x, m_select_34.y, m_select_34.width, m_select_34.height);
-            for (int i = 0; i < m_select_34.width && cnt == 3; ++i)
-                for (int j = 0; j < m_select_34.height; ++j){
-                    if (cld.pixelColor(i, j).green() != 255){
-                        cnt = 4;
-                        tar_locs = m_loc_4;
-                        break;
-                    }
-                }
+            if (!isGreenBar(m_origin, m_select_34)){
+                cnt = 4;
+                tar_locs = m_loc_4;
+            }
+            int st = 0, ed = cnt;
+            if (cnt == 3 && !isGreenBar(m_origin, m_select_30)){
+                st = 1; ed = 2;
+            }else if (cnt == 4 && !isGreenBar(m_origin, m_select_40)){
+                st = 1; ed = 3;
+            }
 
             std::vector<cv::Rect> poses;
             std::vector<int> lbls;
             int mn_cost = - 1, sel = - 1;
-            for (int i = 0; i < cnt; ++i){
+            for (int i = st; i < ed; ++i){
                 auto roi = m_screen(tar_locs[i]);
                 auto cost = trainingServer::instance()->recognizeNumber(roi);
                 poses.push_back(tar_locs[i]);
@@ -701,7 +711,7 @@ public:
             }
             TRIG("controlWorld", STMJSON(dst::Json("type", "click",
                                                    "org", dst::JArray(tar_locs[sel].x + tar_locs[sel].width * 0.5, tar_locs[sel].y + tar_locs[sel].height * 0.5))))
-           // savePredictResult2(poses, lbls, QJsonObject(), "selectScene");
+            savePredictResult2(poses, lbls, QJsonObject(), "selectScene");
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             captureScreen();
         }
@@ -718,14 +728,17 @@ public:
         }*/
         auto src = aScreen(cv::Rect(m_loc.x - 5, m_loc.y - 5, m_loc.width + 2 * 5, m_loc.height + 2 * 5)).clone();
         cv::Mat tmp1, tmp2, tmp3;
-        threshold(255 - src, tmp1, 200, 255, cv::THRESH_BINARY);
-        threshold(255 - m_button, tmp2, 200, 255, cv::THRESH_BINARY);
+//
+        threshold(255 - src, tmp1, 220, 255, cv::THRESH_BINARY);
+        threshold(255 - m_button, tmp2, 220, 255, cv::THRESH_BINARY);
+
         cv::matchTemplate(tmp1, tmp2, tmp3, cv::TemplateMatchModes::TM_CCORR_NORMED);
 
         double minValue, maxValue;
         cv::Point minLocation, maxLocation;
         cv::Point matchLocation;
         minMaxLoc(tmp3, &minValue, &maxValue, &minLocation, &maxLocation, cv::Mat());
+        std::cout << maxValue << std::endl;
         //dst::showDstLog("myTurn conf : " + QString::number(maxValue));
 
         if (maxValue > 0.85){
