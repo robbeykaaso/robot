@@ -434,16 +434,6 @@ private:
         auto idx = dorecog(m_my_count_feature, m_attendant_pos, false);
         dst::showDstLog("myTurn myAttendants : " + QString::number(idx));
 
-        if (m_enemy_hero_loc.width > 0 && m_enemy_hero_loc.height > 0)
-            for (int i = 0; i < aPoses.size(); i += 2){
-                auto st_x = aPoses[i].x + aPoses[i].width * 0.5, st_y = aPoses[i].y + aPoses[i].height * 0.5;
-                if (aLabels[i + 1] > 0)
-                    TRIG("controlWorld", STMJSON(dst::Json("type", "drag",
-                                                           "org", dst::JArray(st_x, st_y),
-                                                           "del", dst::JArray(m_enemy_hero_loc.x + m_enemy_hero_loc.width * 0.5 - st_x,
-                                                                                  m_enemy_hero_loc.y + m_enemy_hero_loc.height * 0.5 - st_y))));
-            }
-
         auto idx2 = dorecog(m_enemy_count_feature, m_enemy_pos, true);
         dst::showDstLog("myTurn enemyAttendants : " + QString::number(idx2));
 
@@ -523,8 +513,8 @@ private:
 
         do{
             recognizeAttendants(poses, lbls, img_lbls, sneers, cnt);
+            savePredictResult2(poses, lbls, img_lbls, "myTurn");
             if (sneers.size() > 0 && cnt[0] > 0){
-                auto idxes = getAttendantFeatureIndex(cnt[0]);
                 auto my = cnt[0] % 2 == 0 ? 5 : 6, tar = cnt[1] % 2 == 0 ? 5 : 6;
                 auto st_x = m_attendant_pos[my][0].x + m_attendant_pos[my][0].width * 0.5,
                      st_y = m_attendant_pos[my][0].y + m_attendant_pos[my][0].height * 0.5,
@@ -534,8 +524,21 @@ private:
                                                        "org", dst::JArray(st_x, st_y),
                                                        "del", dst::JArray(ed_x - st_x, ed_y - st_y))));
                 std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-            }else
+                captureScreen();
+                poses.clear();lbls.clear();sneers.clear();
+            }else{
+                auto idxes = getAttendantFeatureIndex(cnt[0]);
+                if (m_enemy_hero_loc.width > 0 && m_enemy_hero_loc.height > 0)
+                    for (int i = 0; i < idxes.size() * 2; i += 2){
+                        auto st_x = poses[i].x + poses[i].width * 0.5, st_y = poses[i].y + poses[i].height * 0.5;
+                        if (lbls[i + 1] > 0)
+                            TRIG("controlWorld", STMJSON(dst::Json("type", "drag",
+                                                                   "org", dst::JArray(st_x, st_y),
+                                                                   "del", dst::JArray(m_enemy_hero_loc.x + m_enemy_hero_loc.width * 0.5 - st_x,
+                                                                                      m_enemy_hero_loc.y + m_enemy_hero_loc.height * 0.5 - st_y))));
+                    }
                 break;
+            }
         }while(1);
 
         //supplyCard(poses, lbls);
