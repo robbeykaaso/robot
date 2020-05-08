@@ -405,8 +405,8 @@ private:
         return ret;
     }
 
-    void recognizeAttendants(std::vector<cv::Rect>& aPoses, std::vector<int>& aLabels, QJsonObject& aImageLabels){
-        auto dorecog = [&](const cv::Rect& aFeaturePos, cv::Rect aAttendantPoses[7][7]){
+    void recognizeAttendants(std::vector<cv::Rect>& aPoses, std::vector<int>& aLabels, QJsonObject& aImageLabels, std::vector<int>& aSneers, int aResult[2]){
+        auto dorecog = [&](const cv::Rect& aFeaturePos, cv::Rect aAttendantPoses[7][7], bool aCheckSneer){
             auto idx = trainingServer::instance()->recognizeCount7(m_screen, aFeaturePos);
             auto idxes = getAttendantFeatureIndex(idx);
             auto m = idx % 2 == 0 ? 5 : 6;
@@ -414,13 +414,24 @@ private:
                 auto pos = aAttendantPoses[m][i];
                 aPoses.push_back(pos);
                 aLabels.push_back(trainingServer::instance()->recognizeNumber(m_screen(pos)));
+                if (aCheckSneer){
+                    auto sneer_chk = cv::Rect(pos.x - 0.66 * m_offset_left, 490, m_offset_left * 0.4, 1);
+                    double minValue, maxValue;
+                    cv::Point minLocation, maxLocation;
+                    cv::Point matchLocation;
+                    minMaxLoc(m_screen(sneer_chk), &minValue, &maxValue, &minLocation, &maxLocation, cv::Mat());
+                    if (minValue < 100){
+                        dst::showDstLog("sneer index : " + QString::number(i));
+                        aSneers.push_back(i);
+                    }
+                }
                 pos.x = pos.x - m_offset_left;
                 aPoses.push_back(pos);
                 aLabels.push_back(trainingServer::instance()->recognizeNumber(m_screen(pos)));
             }
             return idx;
         };
-        auto idx = dorecog(m_my_count_feature, m_attendant_pos);
+        auto idx = dorecog(m_my_count_feature, m_attendant_pos, false);
         dst::showDstLog("myTurn myAttendants : " + QString::number(idx));
 
         if (m_enemy_hero_loc.width > 0 && m_enemy_hero_loc.height > 0)
@@ -433,10 +444,12 @@ private:
                                                                                   m_enemy_hero_loc.y + m_enemy_hero_loc.height * 0.5 - st_y))));
             }
 
-        auto idx2 = dorecog(m_enemy_count_feature, m_enemy_pos);
+        auto idx2 = dorecog(m_enemy_count_feature, m_enemy_pos, true);
         dst::showDstLog("myTurn enemyAttendants : " + QString::number(idx2));
 
         dst::Json(aImageLabels, "custom", QString::number(idx), "enemy", QString::number(idx2));
+
+        aResult[0] = idx; aResult[1] = idx2;
     }
 
     int recognizeCardCount(){
@@ -503,11 +516,28 @@ private:
     }
 private:
     void play(){
-        std::vector<int> lbls;
+        int cnt[2];
+        std::vector<int> lbls, sneers;
         std::vector<cv::Rect> poses;
         QJsonObject img_lbls;
 
-        recognizeAttendants(poses, lbls, img_lbls);
+        do{
+            recognizeAttendants(poses, lbls, img_lbls, sneers, cnt);
+            if (sneers.size() > 0 && cnt[0] > 0){
+                auto idxes = getAttendantFeatureIndex(cnt[0]);
+                auto my = cnt[0] % 2 == 0 ? 5 : 6, tar = cnt[1] % 2 == 0 ? 5 : 6;
+                auto st_x = m_attendant_pos[my][0].x + m_attendant_pos[my][0].width * 0.5,
+                     st_y = m_attendant_pos[my][0].y + m_attendant_pos[my][0].height * 0.5,
+                     ed_x = m_attendant_pos[tar][sneers[0]].x + m_attendant_pos[tar][sneers[0]].width * 0.5,
+                     ed_y = m_attendant_pos[tar][sneers[0]].y + m_attendant_pos[tar][sneers[0]].height * 0.5;
+                TRIG("controlWorld", STMJSON(dst::Json("type", "drag",
+                                                       "org", dst::JArray(st_x, st_y),
+                                                       "del", dst::JArray(ed_x - st_x, ed_y - st_y))));
+                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            }else
+                break;
+        }while(1);
+
         //supplyCard(poses, lbls);
         //auto cardmodel = supplyCard2(poses, lbls, card_count);
         int gem_count = recognizeGemCount(poses, lbls, img_lbls);
@@ -616,6 +646,25 @@ public:
         loadFeaturePos("gemPos", m_gem_loc);
         loadFeaturePos("heroPos", m_hero_loc);
         loadFeaturePos("enemyHeroPos", m_enemy_hero_loc);
+
+        dst::streamManager::instance()->registerEvent("unitTest", "mdyMyTurn4", [this](std::shared_ptr<dst::streamData> aInput){
+            QJsonObject info;
+            dst::configObject::loadJsonFileConfig("unittestInfo", info);
+            if (info.value("myturn_attendant").toBool()){
+                auto lst = info.value("myturn_attendant_list").toArray();
+                for (auto i : lst){
+                    m_origin = QImage(i.toString());
+                    m_screen = QImage2cvMat(m_origin);
+                    cv::cvtColor(m_screen, m_screen, cv::COLOR_RGB2GRAY);
+                    int cnt[2];
+                    std::vector<int> lbls, sneers;
+                    std::vector<cv::Rect> poses;
+                    QJsonObject img_lbls;
+                    recognizeAttendants(poses, lbls, img_lbls, sneers, cnt);
+                }
+            }
+            return aInput;
+        });
 
         dst::streamManager::instance()->registerEvent("unitTest", "mdyMyTurn3", [this](std::shared_ptr<dst::streamData> aInput){
             captureScreen();

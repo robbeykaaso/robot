@@ -5,7 +5,13 @@
         "D:/deepsight/deepinspectstorage2/image/1588461264-377116D9-14EE-4c39-8505-FEA49FFE1ABA/0.png",
         "D:/deepsight/deepinspectstorage2/image/1588461259-5677A2AC-4622-4807-A495-A82FE10A304F/0.png",
         "D:/deepsight/deepinspectstorage2/image/1588461249-32A58C69-06FE-4e96-B5C0-02F8A8A0B780/0.png"],
-        "myturn": true,
+        "myturn_attendant": true,
+        "myturn_attendant_list": [
+            "D:/build-deepinspection-Desktop_Qt_5_12_2_MSVC2015_64bit-Default/deepinspectstorage2/image/1587957019-8E425854-D036-4776-9004-9472C36A0F4F/0.png",
+            "D:/build-deepinspection-Desktop_Qt_5_12_2_MSVC2015_64bit-Default/deepinspectstorage2/image/1587957020-434C6523-2908-4f6c-B121-FC99C04D87AC/0.png",
+            "D:/build-deepinspection-Desktop_Qt_5_12_2_MSVC2015_64bit-Default/deepinspectstorage2/image/1587957019-B166304A-15EF-4473-A2A4-9EBF9E60D5A2/0.png"
+        ],
+        "myturn": false,
         "myturn_list": [
             "D:/deepsight/deepinspectstorage2/image/1588664360-1AF86F48-DAA3-4127-9625-3DE2EACBDAE1/0.png",
             "D:/deepsight/deepinspectstorage2/image/1588664360-17C3658E-71A9-4f69-8BD6-CD2A3216D2B9/0.png",
