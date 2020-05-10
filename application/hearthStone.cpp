@@ -511,25 +511,32 @@ private:
         std::vector<cv::Rect> poses;
         QJsonObject img_lbls;
 
+        int lst_cnt = - 1, lst_used = 0;
         do{
             recognizeAttendants(poses, lbls, img_lbls, sneers, cnt);
             savePredictResult2(poses, lbls, img_lbls, "myTurn");
-            if (sneers.size() > 0 && cnt[0] > 0){
-                auto my = cnt[0] % 2 == 0 ? 5 : 6, tar = cnt[1] % 2 == 0 ? 5 : 6;
-                auto st_x = m_attendant_pos[my][0].x + m_attendant_pos[my][0].width * 0.5,
-                     st_y = m_attendant_pos[my][0].y + m_attendant_pos[my][0].height * 0.5,
-                     ed_x = m_attendant_pos[tar][sneers[0]].x + m_attendant_pos[tar][sneers[0]].width * 0.5,
-                     ed_y = m_attendant_pos[tar][sneers[0]].y + m_attendant_pos[tar][sneers[0]].height * 0.5;
+
+            if (lst_cnt == cnt[0])
+                lst_used += 2;
+            lst_cnt = cnt[0];
+            dst::showDstLog(QString::number(lst_cnt) + ";" + QString::number(lst_used));
+
+            if (sneers.size() > 0 && cnt[0] > 0 && lst_used < cnt[0] * 2){
+                auto tar = cnt[1] % 2 == 0 ? 5 : 6;
+                auto st_x = poses[lst_used].x + poses[lst_used].width * 0.5,
+                     st_y = poses[lst_used].y + poses[lst_used].height * 0.5,
+                     ed_x = m_enemy_pos[tar][sneers[0]].x + m_enemy_pos[tar][sneers[0]].width * 0.5,
+                     ed_y = m_enemy_pos[tar][sneers[0]].y + m_enemy_pos[tar][sneers[0]].height * 0.5;
                 TRIG("controlWorld", STMJSON(dst::Json("type", "drag",
                                                        "org", dst::JArray(st_x, st_y),
                                                        "del", dst::JArray(ed_x - st_x, ed_y - st_y))));
-                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                std::this_thread::sleep_for(std::chrono::milliseconds(3000));
                 captureScreen();
                 poses.clear();lbls.clear();sneers.clear();
             }else{
                 auto idxes = getAttendantFeatureIndex(cnt[0]);
                 if (m_enemy_hero_loc.width > 0 && m_enemy_hero_loc.height > 0)
-                    for (int i = 0; i < idxes.size() * 2; i += 2){
+                    for (int i = lst_used * 2; i < idxes.size() * 2; i += 2){
                         auto st_x = poses[i].x + poses[i].width * 0.5, st_y = poses[i].y + poses[i].height * 0.5;
                         if (lbls[i + 1] > 0)
                             TRIG("controlWorld", STMJSON(dst::Json("type", "drag",
